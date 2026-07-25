@@ -1,0 +1,46 @@
+# ============================================================================
+# Keep DEV-ONLY material out of the deployed static payload.
+#
+# WHAT SHIPS: index.html, styles.css, script.js, preload.js, sfx-data.js,
+#             asset-manifest.json, assets/, sfx/, "LBD 1/", "LBD 2/"
+#             (including each game's own asset-manifest.json + embed-bridge.js).
+#             There is NO build step — index.html is the entry point as-is.
+# ============================================================================
+
+# Dev tooling: local Range-capable server, media optimiser, manifest generator.
+tools/
+
+# Test suite, its config and its output.
+tests/
+playwright.config.js
+playwright-report/
+test-results/
+node_modules/
+package.json
+package-lock.json
+
+# Pre-optimisation source media, kept for reference only. These are the ORIGINAL
+# .mp4 / .png / .mp3 files replaced by the WebM / WebP / Ogg versions — shipping them
+# would double the payload for no benefit.
+quarantine/
+
+# Development reports (kept in the workspace, never deployed).
+IMPLEMENTATION_REPORT.md
+media-size-report.json
+media-size-report.csv
+
+# Editor / assistant / OS junk.
+.vscode/
+.claude/
+.idea/
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Local scratch and captures.
+*.log
+test_*.html
+Media/
+
+# Playwright screenshot evidence — development artefact only
+screenshots/

@@ -12,10 +12,9 @@
     --cover:      #1b3f8f;   /* frame/cover base — rich electric blue */
     --cover-2:    #12285e;   /* deeper tech blue */
     --cover-3:    #0a1636;   /* deepest blue (spine) */
-    --cover-edge: #050d24;   /* binding edge — near-black space blue */
-    --accent:     #4aa8ff;   /* page-title sky-blue */
-    --accent-2:   #35d6f0;   /* glowing CYAN (matches Byte's teal accents) */
-    --tape:       rgba(90, 210, 255, 0.55);   /* cyan washi-tape */
+    --accent-2:   #35d6f0;   /* glowing CYAN (matches Byte's teal accents) — nav controls */
+    /* (--accent, --cover-edge and --tape removed: nothing referenced them once the
+       scrapbook-era bookplate, taped-photo and binding-edge rules were deleted.) */
     --page-edge:  #3f5db8;   /* page-stack edge colour (electric blue) */
     --page-back:   #2f66d6;  /* BACK of a page + the right-side page stack (bright blue) */
     --page-back-2: #163a86;  /* deeper blue for the stack edges / gradient shading */
@@ -153,33 +152,74 @@
   /* Bare arrow icons — NO circle: no background fill, no box-shadow, no border,
      no rounded pill. Only the arrow glyph shows, same position/size, clickable. */
   /* Flip arrows OUTSIDE the book, fixed at the viewport's bottom corners. */
+  /* ---- BACK / NEXT ---------------------------------------------------------
+     Fixed at the viewport's LOWER CORNERS, outside the content artwork/frame, so
+     they never cover a page or its turnable corners. The negative `bottom` tucks
+     the glyph's transparent padding off-screen so the arrow reads as sitting in the
+     bottom margin. JS owns .is-visible (shown only after the experience starts) and
+     .is-hidden (absent entirely — used for Back on the first story page). */
   .corner-arrow {
-    position: fixed; bottom: clamp(-16px, -0.9vh, -6px); z-index: 700;  /* nudged a bit lower */
-    width: clamp(52px, 6vw, 70px); height: clamp(52px, 6vw, 70px);
-    border: none; background: none; color: var(--accent-2);   /* moon-gold: visible on the night bg */
+    position: fixed;
+    width: clamp(84px, 10vw, 124px);
+    height: clamp(84px, 10vw, 124px);
+    bottom: clamp(-10px, -0.5vh, -2px);
+    z-index: 700;
+    border: none; background: none; padding: 0;
+    color: var(--accent-2);                                    /* moon-gold: visible on the night bg */
     filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55));           /* legible over any page */
     display: none; align-items: center; justify-content: center;
     cursor: pointer; opacity: 0;
     transition: opacity 400ms ease, transform 150ms ease;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;                               /* no iOS long-press callout */
+    -webkit-tap-highlight-color: transparent;
   }
-  body.is-open .corner-arrow { display: flex; opacity: 0.96; }
+  .corner-arrow.is-visible { display: flex; opacity: 0.96; }
+  /* Absent, not merely faded — Back on the first story page. */
+  .corner-arrow.is-hidden  { display: none !important; }
+  .corner-arrow.back { left:  clamp(12px, 2.5vw, 34px); }
+  .corner-arrow.fwd  { right: clamp(12px, 2.5vw, 34px); }
+  /* The glyph fills ~62% of the button box. The MIRROR for Back lives on the nested
+     <svg>, NOT the button, so the button's hover/active scale composes with it
+     instead of overwriting it (a scale on the same element would un-mirror it). */
+  .corner-arrow svg      { width: 62%; height: 62%; }
+  .corner-arrow.back svg { transform: scaleX(-1); }            /* one arrow asset, mirrored */
+  .corner-arrow:hover  { transform: scale(1.12); }
+  .corner-arrow:active { transform: scale(0.9); }
+  /* No focus ring: long-press / repeated taps were leaving a white outline box around
+     the arrow. The elements stay real <button>s with accessible names, so keyboard
+     operation is unaffected — only the visual ring is removed. */
+  .corner-arrow:focus,
+  .corner-arrow:focus-visible { outline: none; box-shadow: none; }
+  .corner-arrow[disabled] { opacity: 0.22; pointer-events: none; }
 
-  /* HOME button — top-left, moon-gold like the arrows. JS toggles .show (only
-     while reading; hidden on the cover, the last page and the end). */
+  /* ---- HOME ---------------------------------------------------------------
+     Same outer box as the arrows so all three read at the same weight, sitting
+     fully in the TOP-RIGHT margin above the content frame. JS toggles .show (only
+     while reading; hidden on the cover and on THE END page, which has its Replay). */
   .home-btn {
-    position: fixed; top: clamp(2px, 0.6vh, 8px); right: clamp(8px, 1.6vw, 22px); z-index: 720;
-    width: clamp(40px, 4.6vw, 56px); height: clamp(40px, 4.6vw, 56px);
-    border: none; background: none; color: var(--accent-2);
+    position: fixed;
+    width: clamp(84px, 10vw, 124px);
+    height: clamp(84px, 10vw, 124px);
+    top:   clamp(-12px, -0.9vh, -4px);
+    right: clamp(8px, 1.6vw, 22px);
+    z-index: 720;
+    border: none; background: none; padding: 0;
+    color: var(--accent-2);
     filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55));
     display: none; align-items: center; justify-content: center;
-    cursor: pointer; opacity: 0; padding: 0;
-    transition: opacity 360ms ease, transform 150ms ease;
+    cursor: pointer; opacity: 0;
+    transition: opacity 400ms ease, transform 150ms ease;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
   }
   .home-btn.show   { display: flex; opacity: 0.96; }
-  .home-btn:hover  { transform: scale(1.1); }
+  .home-btn:hover  { transform: scale(1.12); }
   .home-btn:active { transform: scale(0.9); }
-  .home-btn:focus, .home-btn:focus-visible { outline: none; }
-  .home-btn svg { width: 92%; height: 92%; }
+  .home-btn:focus, .home-btn:focus-visible { outline: none; box-shadow: none; }
+  .home-btn[disabled] { opacity: 0.22; pointer-events: none; }
+  .home-btn svg { width: 65%; height: 65%; }     /* glyph fills ~65% of the box */
 
   /* While the viewport is actively resizing / the resolution is changing, freeze
      the page-turn transitions so the book can't appear to auto-flip (JS adds
@@ -188,23 +228,12 @@
   body.is-resizing .leaf .curl,
   body.is-resizing #flipbook,
   body.is-resizing .flip-scale { transition: none !important; animation: none !important; }
-  .corner-arrow:hover  { transform: scale(1.12); }
-  .corner-arrow:active { transform: scale(0.9); }
-  /* No focus ring: long-press / repeated taps were leaving a white outline box
-     around the arrow. (Flipping still works via keys, drag, and the arrows.) */
-  .corner-arrow:focus,
-  .corner-arrow:focus-visible { outline: none; box-shadow: none; }
-  .corner-arrow[disabled] { opacity: 0.22; pointer-events: none; }
-  .corner-arrow.back { left: clamp(12px, 2.5vw, 34px); }
-  .corner-arrow.fwd  { right: clamp(12px, 2.5vw, 34px); }
-  .corner-arrow svg  { width: 58%; height: 58%; }
-  .corner-arrow.back svg { transform: scaleX(-1); }   /* mirror the forward arrow */
 
   /* ---- Page-turn hint (hand on the RIGHT side of the book) -------------------
      Guidance for HOW to turn the page: a 3D hand on the book's right edge does a
      right-to-left SWIPE, shown together with the "ghost" page-flip. JS positions
      it against the book's right side (see positionFlipHint) and toggles .show.
-     Drop your art at assets/hand-nudge.png; until then an emoji hand is used. */
+     Drawn as an emoji glyph — no external image, so no request and nothing to 404. */
   .flip-hint {
     position: fixed; z-index: 720; pointer-events: none;
     width: clamp(56px, 7vw, 104px); height: auto;
@@ -397,35 +426,9 @@
      used to flash a translucent pink panel over the page mid-transition. */
   .book.open .book-body { opacity: 0; }
 
-  /* One paper page filling the whole book, behind the leaves (the surface the
-     current single page rests on). Bound (square) on the left, rounded outside. */
-  .page-base {
-    position: absolute; inset: 1.4%;
-    background: var(--paper); opacity: 0;
-    transform: translateZ(-8px); border-radius: 2px 11px 11px 2px;
-    box-shadow: inset 12px 0 22px -18px rgba(0,0,0,0.12);
-    transition: opacity var(--cover-ms) ease;
-  }
-  .book.open .page-base { opacity: 1; transition: opacity 560ms ease 360ms; }
-
-  /* Inside-front-cover bookplate (the left page at the very start) */
-  .bookplate {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 12%;
-  }
-  .bookplate .line { font-family: var(--font-note); font-size: clamp(18px, 2.8vw, 32px); color: var(--ink); }
-  .bookplate .name-line { border-bottom: 3px dotted var(--accent); min-width: 62%; margin-top: 4px; }
-
-  /* "The End" note shown on the right base once every page is turned */
-  .end-note {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 8px; text-align: center;
-    padding: 12%; opacity: 0; transition: opacity 400ms ease 200ms; pointer-events: none;
-  }
-  .book.at-end .end-note { opacity: 1; }
-  .end-note .big { font-family: var(--font-head); font-weight: 700;
-                   font-size: clamp(22px, 3.4vw, 46px); color: var(--cover-2); }
-  .end-note .small { font-family: var(--font-note); font-size: clamp(16px, 2.4vw, 26px); }
+  /* (Removed: .page-base, .bookplate and .end-note — three scrapbook-era blocks with
+     no markup left in index.html and no JS that builds them. THE END is now a real
+     final leaf (.end-page), so .end-note / .book.at-end were dead too.) */
 
   /* ==========================================================================
      THE 3D PAGE BLOCK  —  a real cuboid giving the closed book its thickness.
@@ -596,14 +599,13 @@
      A thin cyan rim ties it into the futuristic theme. */
   .cover .front .cover-img {
     position: absolute; inset: 0; z-index: 0; border-radius: 6px;
-    background: url("assets/coverpage.png") center / cover no-repeat;
+    background: url("assets/coverpage.webp") center / cover no-repeat;
     box-shadow: inset 0 0 0 2px rgba(90,220,255,0.30);
   }
-  /* The custom artwork already has its own title + characters, so hide the
-     placeholder title / subtitle / taped photo — keep only the "tap to open" hint. */
-  .cover .front .title,
-  .cover .front .subtitle,
-  .cover .front .cover-photo { display: none; }
+  /* The custom artwork already carries its own title + characters, so the placeholder
+     title stays hidden. (.subtitle / .cover-photo / .tape were removed entirely — that
+     markup no longer exists anywhere.) */
+  .cover .front .title { display: none; }
   /* Spine binding — a soft DARK crease near the left edge where the cover folds
      by the spine, sitting over the full-bleed artwork like the fold on a real
      picture-book cover. Dark-only groove (no light highlight — a bright edge here
@@ -640,24 +642,6 @@
     font-size: clamp(24px, 4.4vw, 58px);
     text-shadow: 0 3px 0 rgba(0,0,0,0.14);
   }
-  .cover .subtitle {
-    font-family: var(--font-note); font-size: clamp(17px, 2.8vw, 32px); opacity: 0.96;
-  }
-  /* A taped-on keepsake photo (a random kid avatar) — reinforces the scrapbook look */
-  .cover .cover-photo {
-    position: relative; background: #fff; padding: 7px 7px 12px;
-    border-radius: 4px; transform: rotate(-5deg);
-    box-shadow: 0 8px 18px rgba(0,0,0,0.28);
-  }
-  .cover .cover-photo img {
-    display: block; width: clamp(64px, 12vw, 128px); height: clamp(64px, 12vw, 128px);
-    object-fit: cover; border-radius: 3px; background: #eee;
-  }
-  .cover .cover-photo .tape {
-    position: absolute; top: -11px; left: 50%; width: 60px; height: 22px;
-    transform: translateX(-50%) rotate(-3deg);
-    background: var(--tape); box-shadow: 0 1px 3px rgba(0,0,0,0.14);
-  }
   /* Back of the cover (revealed on the left once the book is open) — SOLID blue,
      matching the cover theme. */
   .cover .back {
@@ -670,7 +654,8 @@
                 inset 0 0 0 2px rgba(255,255,255,0.06);
   }
   .cover .back .line { font-family: var(--font-note); font-size: clamp(18px, 2.8vw, 32px); color: rgba(255,255,255,0.92); }
-  .cover .back .name-line { border-bottom: 3px dotted rgba(255,255,255,0.7); min-width: 62%; margin-top: 4px; }
+  /* (.cover .back .name-line removed — the back of the cover is an intentionally blank
+     dark board, so the "this book belongs to ___" dotted rule had no markup.) */
 
   /* PLAY button sitting on the cover — the supplied PNG (glossy cyan orb + ring +
      white ▶ all baked in). Placed in the LOWER-CENTRE, BELOW the title text so it
@@ -681,7 +666,7 @@
     width: clamp(112px, 13vw, 160px); height: clamp(112px, 13vw, 160px);  /* big + poppy */
     border: none; padding: 0; cursor: pointer;
     /* the artwork already carries the glow/ring/triangle — just drop it in */
-    background: url("assets/play%20button.png") center / cover no-repeat;
+    background: url("assets/play%20button.webp") center / cover no-repeat;
     filter: drop-shadow(0 9px 16px rgba(4,14,40,0.5));
     transition: transform 120ms ease, filter 120ms ease;
     animation: playBreathe 2.4s ease-in-out infinite;   /* poppy breathing */
@@ -693,6 +678,54 @@
   @keyframes playBreathe {
     0%, 100% { transform: translate(-50%, -50%) scale(1);     filter: drop-shadow(0 9px 16px rgba(4,14,40,0.5)) drop-shadow(0 0 8px  rgba(60,210,255,0.45)); }
     50%      { transform: translate(-50%, -50%) scale(1.07);  filter: drop-shadow(0 9px 16px rgba(4,14,40,0.5)) drop-shadow(0 0 24px rgba(60,210,255,0.9)); }
+  }
+
+  /* ==========================================================================
+     STAGE A SHELL LOADER  —  sits in the Play button's place while the shell
+     assets download. preload.js flips <html> from .shell-loading to .shell-ready.
+     The button is genuinely absent (display:none) until Stage A hits 100%, so it
+     cannot be tapped early; the real guard is in openBook(), this is the visual half.
+     ========================================================================== */
+  html.shell-loading .play-btn { display: none; }
+  html.shell-ready  .shell-loader { display: none; }
+
+  .shell-loader {
+    position: absolute; left: 52%; top: 80%; transform: translate(-50%, -50%);
+    z-index: 3; width: clamp(190px, 26vw, 320px);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    pointer-events: none;                      /* purely a read-out */
+  }
+  .shell-loader-track {
+    width: 100%; height: clamp(12px, 1.5vw, 17px);
+    border-radius: 999px; overflow: hidden;
+    background: rgba(6,18,48,0.62);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.55),
+                0 0 0 2px rgba(90,220,255,0.30),
+                0 6px 18px rgba(4,14,40,0.45);
+  }
+  .shell-loader-fill {
+    width: 0%; height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #2fa8e0 0%, #5ce1ff 55%, #b9f3ff 100%);
+    box-shadow: 0 0 12px rgba(92,225,255,0.85);
+    transition: width 220ms ease-out;          /* smooth, and only ever grows */
+  }
+  .shell-loader-pct {
+    font-family: var(--font-ui, system-ui), sans-serif;
+    font-size: clamp(12px, 1.5vw, 16px); font-weight: 700; letter-spacing: 0.06em;
+    color: #cdeffd; text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  }
+  /* POP-IN when the button is finally revealed: a springy overshoot, then it hands
+     over to the normal breathing animation. */
+  html.shell-ready .play-btn { animation: playPopIn 460ms cubic-bezier(0.2,1.5,0.4,1) 1 both,
+                                          playBreathe 2.4s ease-in-out 460ms infinite; }
+  @keyframes playPopIn {
+    0%   { transform: translate(-50%, -50%) scale(0.35); opacity: 0; }
+    60%  { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1);    opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shell-loader-fill { transition: none; }
+    html.shell-ready .play-btn { animation: none; }
   }
 
   /* ==========================================================================
@@ -849,21 +882,56 @@
                 height 0.4s cubic-bezier(0.4,0,0.2,1),
                 border-radius 0.4s ease, opacity 0.3s ease;
   }
-  /* Full screen: fill the viewport and rise above the arrows / progress chip. */
-  .lbd-stage.fullscreen {
+  /* TRUE fullscreen: fill the viewport and rise above every piece of book chrome.
+     This works only because .lbd-stage is a DIRECT child of <body> — inside
+     .flip-scale (which carries a CSS transform) position:fixed would be trapped by
+     the transformed ancestor and this box would size to the book instead. */
+  .lbd-stage.lbd-is-fullscreen {
     left: 0 !important; top: 0 !important;
     width: 100vw !important;
-    height: 100vh !important; height: 100dvh !important;   /* dvh where supported, vh fallback */
+    height: 100vh !important;          /* fallback first … */
+    height: 100dvh !important;         /* …then dvh where supported (mobile URL bar) */
     border-radius: 0; z-index: 1200; box-shadow: none;
+  }
+  @supports not (height: 100dvh) {
+    .lbd-stage.lbd-is-fullscreen { height: 100vh !important; }
   }
   #lbdFrame {
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: 0; display: block; background: #0a0f2d;
   }
-  /* While the game is full screen, get the book chrome out of the way. */
+  /* While the game is fullscreen, every navigation control and hint is REMOVED from
+     the layout — not just faded — so nothing can be tapped through and nothing
+     overlaps the game. */
   body.lbd-fullscreen .corner-arrow,
   body.lbd-fullscreen .home-btn,
-  body.lbd-fullscreen .toolbar { display: none !important; }
+  body.lbd-fullscreen .flip-hint { display: none !important; }
+  /* Background page scrolling is impossible while the game owns the viewport. */
+  body.lbd-fullscreen { overflow: hidden; overscroll-behavior: none; touch-action: none; }
+
+  /* ==========================================================================
+     GPU PAGE WINDOWING  —  see applyPageWindow() in script.js.
+     Only the current page and its immediate neighbours stay renderable; the rest
+     release their composited layer. visibility (not display) keeps each leaf in the
+     stack so the 3D geometry and z-ordering the flip depends on are preserved.
+     ========================================================================== */
+  .leaf.is-far {
+    visibility: hidden;
+    will-change: auto;                 /* hand the GPU layer back */
+    pointer-events: none;
+  }
+  /* A TURNED leaf's front face points away from the camera. backface-visibility on
+     the face alone isn't always enough: a child with its own filter or animation gets
+     its own compositing layer, which some engines keep painting — that is the "ghost
+     text / ghost overlay above an unrelated page" bug. Hard-hide those children while
+     the face is turned away, but NOT mid-turn, where a visibility flip would show. */
+  .leaf .face .page-media,
+  .leaf .face .bubble,
+  .leaf .face .sbub,
+  .leaf .face .end-page-inner {
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  }
+  .leaf.flipped:not(.flipping) .face.front > * { visibility: hidden; }
 
   /* ---- Speech bubble (SVG) --------------------------------------------------
      A white comic bubble with a black outline + purple neon glow and a tail,
@@ -926,20 +994,12 @@
     text-wrap: balance;
   }
 
-  /* Crop maths per bubble (derived from the measured bounding boxes). Height is
-     locked to the bubble's aspect ratio; bg-size/position show only the bbox. */
-  .bubble.neel       { height: calc(var(--w) * 0.6972); }
-  .bubble.neel       .bubble-bg {
-    background-image: url("assets/neel dialogue box for one time..webp");
-    background-size: calc(var(--w) * 2.2272) auto;
-    background-position: calc(var(--w) * -0.7621) calc(var(--w) * -0.2645);
-  }
-  .bubble.everywhere { height: calc(var(--w) * 0.7067); }
-  .bubble.everywhere .bubble-bg {
-    background-image: url("assets/dialogue box for everywhere..webp");
-    background-size: calc(var(--w) * 2.1501) auto;
-    background-position: calc(var(--w) * -0.5756) calc(var(--w) * -0.2385);
-  }
+  /* NOTE: the two `kind` variants (.bubble.neel / .bubble.everywhere) were removed —
+     they cropped bubble artwork ("assets/neel dialogue box for one time..webp" and
+     "assets/dialogue box for everywhere..webp") that was never shipped with the
+     project, so both rules pointed at missing files. The plain .bubble box below
+     still works for authoring; use makeSpeechBubble() (.sbub, pure inline SVG) when
+     you want framed bubble art with no external image dependency. */
 
   /* Pop-in reveal: the bubble scales up from small with a springy overshoot and
      fades in — played once the page has fully settled ("for one time"). */
@@ -969,15 +1029,8 @@
   .arrow.prev { left: clamp(6px, 3vw, 34px); } .arrow.next { right: clamp(6px, 3vw, 34px); }
   body.is-open .arrow { display: flex; }
 
-  /* Fixed at the bottom-centre (out of the column flow) so the book can sit dead-
-     centre in the viewport instead of being pushed up by this row. */
-  .toolbar { position: fixed; left: 50%; bottom: clamp(2px, 0.6vh, 8px);
-             transform: translateX(-50%); z-index: 650; margin: 0;
-             display: flex; align-items: center; gap: 14px;
-             font-family: var(--font-head); font-weight: 500; }
-  .progress { background: rgba(255,255,255,0.82); padding: 6px 16px; border-radius: 999px;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.1); color: var(--ink); cursor: default;
-              font-size: clamp(14px, 2vw, 18px); min-width: 108px; text-align: center; }
+  /* (Removed: .toolbar / .progress — the bottom toolbar and page counter were taken out
+     of index.html, so both rules and the `body.lbd-fullscreen .toolbar` guard were dead.) */
 
   /* Respect users who prefer less motion */
   @media (prefers-reduced-motion: reduce) {

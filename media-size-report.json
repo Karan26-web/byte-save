@@ -1,0 +1,169 @@
+{
+  "generated": "2026-07-25T05:55:03.680Z",
+  "BROWSER_SUPPORT": "WebM/VP9 video, Ogg/Opus audio and WebP images are supported by Chrome, Edge, Firefox and Safari 15+ (macOS 12+ / iOS 15+).",
+  "encoderSettings": {
+    "video": "libvpx-vp9, constrained quality (-crf 32 with -b:v cap at 75% of source video bitrate), -pix_fmt yuv420p, Opus 96k audio; two-pass at 70/60/50% as fallback",
+    "audio": "libopus -vbr on, 64 kbps mono speech / 96 kbps stereo music",
+    "image": "libwebp -quality 82-85, -compression_level 6, original pixel dimensions, alpha preserved"
+  },
+  "totalsByKind": {
+    "image": {
+      "sourceBytes": 3340641,
+      "outputBytes": 205492,
+      "files": 2,
+      "exceptions": 0,
+      "savedPct": 93.8487254392196
+    },
+    "audio": {
+      "sourceBytes": 103559,
+      "outputBytes": 28302,
+      "files": 2,
+      "exceptions": 0,
+      "savedPct": 72.67065151266428
+    },
+    "video": {
+      "sourceBytes": 43199904,
+      "outputBytes": 15634503,
+      "files": 4,
+      "exceptions": 0,
+      "savedPct": 63.80894040875646
+    }
+  },
+  "grandTotal": {
+    "sourceBytes": 46644104,
+    "outputBytes": 15868297,
+    "savedPct": 65.98005827274547
+  },
+  "postersGenerated": [
+    {
+      "file": "assets/posters/1.webp",
+      "bytes": 56086,
+      "dims": "1280x720"
+    },
+    {
+      "file": "assets/posters/2.webp",
+      "bytes": 58342,
+      "dims": "1280x720"
+    },
+    {
+      "file": "assets/posters/3.webp",
+      "bytes": 107918,
+      "dims": "1280x720"
+    },
+    {
+      "file": "assets/posters/4.webp",
+      "bytes": 66342,
+      "dims": "1280x720"
+    }
+  ],
+  "files": [
+    {
+      "kind": "image",
+      "source": "assets/coverpage.png",
+      "sourceBytes": 2405294,
+      "output": "assets/coverpage.webp",
+      "outputBytes": 156396,
+      "savedPct": 93.49784267536526,
+      "status": "converted",
+      "sourceDims": "1672x941",
+      "outputDims": "1672x941",
+      "quality": 82,
+      "alpha": false
+    },
+    {
+      "kind": "image",
+      "source": "assets/play button.png",
+      "sourceBytes": 935347,
+      "output": "assets/play button.webp",
+      "outputBytes": 49096,
+      "savedPct": 94.75103891924601,
+      "status": "converted",
+      "sourceDims": "1920x1080",
+      "outputDims": "1920x1080",
+      "quality": 85,
+      "alpha": true
+    },
+    {
+      "kind": "audio",
+      "source": "sfx/Page flip.mp3",
+      "sourceBytes": 83591,
+      "output": "sfx/Page flip.ogg",
+      "outputBytes": 22494,
+      "savedPct": 73.09040446938067,
+      "status": "converted",
+      "durationSec": 2.619,
+      "sourceCodec": "mp3",
+      "outputCodec": "opus",
+      "bitrateKbps": 96
+    },
+    {
+      "kind": "audio",
+      "source": "sfx/cover page flip.mp3",
+      "sourceBytes": 19968,
+      "output": "sfx/cover page flip.ogg",
+      "outputBytes": 5808,
+      "savedPct": 70.91346153846155,
+      "status": "converted",
+      "durationSec": 0.63,
+      "sourceCodec": "mp3",
+      "outputCodec": "opus",
+      "bitrateKbps": 64
+    },
+    {
+      "kind": "video",
+      "source": "assets/1.mp4",
+      "sourceBytes": 15592300,
+      "output": "assets/1.webm",
+      "outputBytes": 5511149,
+      "savedPct": 64.6546757053161,
+      "status": "converted",
+      "sourceDims": "1920x1080",
+      "outputDims": "1920x1080",
+      "durationSec": 52.872,
+      "sourceCodec": "h264/aac",
+      "outputCodec": "vp9/opus"
+    },
+    {
+      "kind": "video",
+      "source": "assets/2.mp4",
+      "sourceBytes": 15949782,
+      "output": "assets/2.webm",
+      "outputBytes": 5580169,
+      "savedPct": 65.01413624336683,
+      "status": "converted",
+      "sourceDims": "1920x1080",
+      "outputDims": "1920x1080",
+      "durationSec": 43.293,
+      "sourceCodec": "h264/aac",
+      "outputCodec": "vp9/opus"
+    },
+    {
+      "kind": "video",
+      "source": "assets/3.mp4",
+      "sourceBytes": 6243237,
+      "output": "assets/3.webm",
+      "outputBytes": 2972349,
+      "savedPct": 52.3908991441459,
+      "status": "converted",
+      "sourceDims": "1920x1080",
+      "outputDims": "1920x1080",
+      "durationSec": 25.053,
+      "sourceCodec": "h264/aac",
+      "outputCodec": "vp9/opus"
+    },
+    {
+      "kind": "video",
+      "source": "assets/4.mp4",
+      "sourceBytes": 5414585,
+      "output": "assets/4.webm",
+      "outputBytes": 1570836,
+      "savedPct": 70.9888015425005,
+      "status": "converted",
+      "sourceDims": "1920x1080",
+      "outputDims": "1920x1080",
+      "durationSec": 12.018,
+      "sourceCodec": "h264/aac",
+      "outputCodec": "vp9/opus"
+    }
+  ]
+}

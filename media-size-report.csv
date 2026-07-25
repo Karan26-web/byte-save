@@ -1,0 +1,9 @@
+kind,source,sourceBytes,output,outputBytes,savedPct,status,sourceDims,outputDims,durationSec,sourceCodec,outputCodec,note
+image,assets/coverpage.png,2405294,assets/coverpage.webp,156396,93.49784267536526,converted,1672x941,1672x941,,,,
+image,assets/play button.png,935347,assets/play button.webp,49096,94.75103891924601,converted,1920x1080,1920x1080,,,,
+audio,sfx/Page flip.mp3,83591,sfx/Page flip.ogg,22494,73.09040446938067,converted,,,2.619,mp3,opus,
+audio,sfx/cover page flip.mp3,19968,sfx/cover page flip.ogg,5808,70.91346153846155,converted,,,0.63,mp3,opus,
+video,assets/1.mp4,15592300,assets/1.webm,5511149,64.6546757053161,converted,1920x1080,1920x1080,52.872,h264/aac,vp9/opus,
+video,assets/2.mp4,15949782,assets/2.webm,5580169,65.01413624336683,converted,1920x1080,1920x1080,43.293,h264/aac,vp9/opus,
+video,assets/3.mp4,6243237,assets/3.webm,2972349,52.3908991441459,converted,1920x1080,1920x1080,25.053,h264/aac,vp9/opus,
+video,assets/4.mp4,5414585,assets/4.webm,1570836,70.9888015425005,converted,1920x1080,1920x1080,12.018,h264/aac,vp9/opus,

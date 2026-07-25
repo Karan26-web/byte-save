@@ -1,0 +1,17 @@
+{
+  "name": "byte-saves-the-day-flipbook",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Byte Saves the Day — static interactive 3D flipbook with two embedded LBD games. NO production build step: index.html is the deployable entry point. Everything below is DEV-ONLY tooling (local server, media optimiser, manifest generator, Playwright suite).",
+  "scripts": {
+    "serve": "node tools/server.js 8080",
+    "manifest": "node tools/gen-manifest.js",
+    "media": "node tools/convert-media.js",
+    "sfx-data": "node tools/gen-sfx-data.js",
+    "test": "playwright test",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0"
+  }
+}

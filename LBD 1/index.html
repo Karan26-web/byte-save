@@ -45,8 +45,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
    clipped. They fall back to dvh/vh units (then vw/vh) for the first paint and no-JS case. */
 /* background here is the LETTERBOX fill — the solid color shown in the bars when the window
    isn't 16:9 and the contained board doesn't reach an edge. Soft sky tone to blend with the art. */
+/* max(…) guards against a transient too-small --app value (e.g. mid-zoom) ever shrinking the
+   stage below the window and exposing the page behind it. 100dvh (not vh) keeps the mobile
+   address-bar fit, so on mobile the max is a no-op (--app-h ≈ dvh). */
 #stage{position:fixed;inset:0;overflow:hidden;background:#d8e7f5;
-  width:var(--app-w,100vw);height:var(--app-h,100dvh);}
+  width:max(var(--app-w,100vw),100vw);height:max(var(--app-h,100dvh),100dvh);}
 @supports not (height:100dvh){#stage{height:var(--app-h,100vh);}}
 /* Top/bottom vignette that frames the playfield. Scoped to #board (not #stage) so it scales
    WITH the contained 16:9 scene and never tints the letterbox bars — keeping the bars a clean
@@ -373,9 +376,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
   border-radius:999px;padding:clamp(4px,.9vw,6px) clamp(10px,2vw,14px) clamp(4px,.9vw,6px) 4px;
   box-shadow:0 6px 16px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.9), inset 0 -2px 3px rgba(0,0,0,.18);
   pointer-events:none;
-  opacity:0;transform:translateY(-14px);
+  /* --bat-scale keeps the HUD at FULL size on large displays (unchanged look) and shrinks it only
+     on smaller screens — see the media queries below — where it would otherwise read too large next
+     to the scene. transform-origin at the top-left corner keeps it pinned to the board corner as it
+     scales; the entrance animation only changes translateY, so the scale stays constant (no wobble). */
+  transform-origin:0 0;
+  opacity:0;transform:translateY(-14px) scale(var(--bat-scale,1));
   transition:opacity .4s ease, transform .4s cubic-bezier(.34,1.4,.5,1);}
-#battery.show{opacity:1;transform:translateY(0);}
+#battery.show{opacity:1;transform:translateY(0) scale(var(--bat-scale,1));}
+/* Full size (scale 1) on large displays; step down on smaller screens only. */
+@media (max-width:1366px){ :root{ --bat-scale:.82; } }
+@media (max-width:1000px){ :root{ --bat-scale:.72; } }
 /* round energy badge on the left — silver ring, teal face, the Energy bolt art */
 #battery .badge{position:relative;z-index:1;flex:none;display:flex;align-items:center;justify-content:center;
   width:clamp(44px,10vw,60px);height:clamp(44px,10vw,60px);
@@ -432,8 +443,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
 /* ── Instruction panel: the InstructionPanel.webp banner (cream, soft green border) with the
    instruction text centred on it. The panel pops in, then the text fades up — with the near/far
    keyword in red so it stands out. ── */
-#instrPanel{position:absolute;left:50%;top:clamp(0px,1vh,14px);transform:translateX(-50%);
-  width:clamp(300px,58vw,660px);max-width:92vw;pointer-events:none;
+/* top is anchored to the BOARD's top edge (letterbox bar + small inset) — same formula the
+   battery uses — so on a tall/letterboxed window the panel stays inside the play area instead
+   of floating up into the sky bar above the board. */
+#instrPanel{position:absolute;left:50%;transform:translateX(-50%);
+  top:calc((var(--app-h,100vh) - min(var(--app-h,100vh), calc(var(--app-w,100vw) * 9 / 16))) / 2
+      + clamp(4px,1vh,14px));
+  /* Full 660px on large displays (unchanged from the original design); on smaller screens the
+     calc(100vw - 700px) term takes over and pins the panel's LEFT edge at ~350px — clear of the
+     top-left battery HUD — so it only shrinks where it would otherwise clash, never on big screens. */
+  width:clamp(230px,calc(100vw - 700px),660px);max-width:92vw;pointer-events:none;
   opacity:0;visibility:hidden;transition:opacity .25s ease, visibility .25s;}
 #instrPanel.show{opacity:1;visibility:visible;}
 /* the panel art (946×154) — pops in with a gentle scale */
@@ -446,7 +465,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
    width so it wraps normally to 1–2 lines and stays within the banner. */
 #instrPanel .ip-text{position:absolute;top:54%;left:50%;transform:translate(-50%,-50%);
   width:88%;text-align:center;color:#1B334E;font-weight:600;
-  font-size:clamp(17px,3.7vw,28px);line-height:1.22;
+  /* font scales WITH the panel width so the longest hint always wraps to ≤2 lines inside the
+     banner art — ~4.24% of the panel width (the original 28/660 ratio), clamped for readability.
+     Restores the original 28px on large screens; only shrinks where the panel itself shrinks. */
+  font-size:clamp(14px,calc((100vw - 700px) * .0424),28px);line-height:1.22;
   opacity:0;transition:opacity .42s ease;}
 #instrPanel.text-in .ip-text{opacity:1;}
 #instrPanel .ip-text .kw{color:#6A70E3;}   /* highlighted keyword (near / far) */
@@ -611,14 +633,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
   background:linear-gradient(#5ed0f5,#2299d6 55%,#1577b3);
   box-shadow:0 9px 0 #0f5a86, 0 14px 20px rgba(0,0,0,.32),
              inset 0 4px 5px rgba(255,255,255,.6), inset 0 -6px 9px rgba(0,40,70,.28);
-  animation:playPulse 1.3s ease-in-out infinite;
+  animation:winPulse 1.3s ease-in-out infinite;
   transition:transform .1s ease, box-shadow .1s ease;}
 #win button:active{animation:none;transform:translateY(5px);
   box-shadow:0 3px 0 #0f5a86, 0 6px 10px rgba(0,0,0,.32),
              inset 0 4px 5px rgba(255,255,255,.55), inset 0 -6px 9px rgba(0,40,70,.28);}
-/* Once tapped the button is disabled for a beat while the page turns — keep it looking the
-   same (no UA-default greying) and freeze the pulse so it reads as "pressed", not broken. */
-#win button:disabled{opacity:1;animation:none;cursor:default;}
+/* The win button is anchored bottom-RIGHT (no translateX), so it needs its own pulse — reusing
+   the Play button's playPulse (which carries translateX(-50%) for the CENTRED play art) shifted
+   this button left and made it snap away on :active, so taps missed it. Scale only, in place. */
+@keyframes winPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 </style>
 </head>
 <body>
@@ -972,19 +995,22 @@ const PLAY_TILE = TILE_TOPS[2]; // Byte's play row — SAME tile row as the pods
 /* Narrator voice-over lines (audios/LBD 1) — one line per tutorial / instruction beat.
    Keys are referenced via audio.playVoice(key); filenames are kept verbatim from the pack. */
 const VO_FILES = {
-  title:       "Byte_s Energy Hunt.ogg",                       // start screen → PLAY tapped
+  title:       "Energy Hunt.ogg",                              // start screen → PLAY tapped
+  // NOTE: this used to point at "Byte_s Energy Hunt.ogg", which is not in the VO pack —
+  // the title line 404'd on every boot and never played. "Energy Hunt.ogg" IS the
+  // shipped title sting (it was sitting on an unused `energyHunt` key), so `title`
+  // now uses it and the duplicate key is gone.
   welcome:     "welcome to the energy farm.ogg",               // welcome title
   pod1:        "this is a pod.ogg",                            // intro bubble, left pod
   pod2:        "this is a pod to .ogg",                        // intro bubble, right pod ("…too")
   energyCells: "Energy cells are stored in these pods.ogg",    // intro hint, scene 4
   helpByte:    "Help Byte collect the cells and power up!.ogg",// intro hint, scene 5 (mission)
-  nearAndFar:  "Near and Far.ogg",                             // lesson title, wipe into level 1
+  // (there is no "Near and Far.ogg" in the pack — the lesson title is text-only)
   cellNear:    "The Pod near Byte has a cell.ogg",             // level hint 1 (near variant)
   tapNear:     "Tap on the pod near Byte.ogg",                 // level hint 2 (near variant)
   tapFar:      "Tap on the Pod far from Byte.ogg",             // level hint 2 (far variant)
   teachNear:   "This pod is near Byte.ogg",                    // distance-teaching bubble (close pod)
   teachFar:    "That pod is far from Byte.ogg",                // distance-teaching bubble (far pod)
-  energyHunt:  "Energy Hunt.ogg",                              // short title sting (unused for now)
 };
 /* Pause after each narrated line before the next beat starts — breathing room for kids
    (lines run 1.7-3.8s, so ~1.3s of quiet keeps the pace gentle without dragging). */
@@ -996,7 +1022,7 @@ class AudioManager {
     // File-based audio (works without the synth AudioContext): looping theme + one-shot SFX.
     if (!this.theme){
       this.theme = new Audio('audios/themeMusic.ogg');
-      this.theme.loop = true; this.theme.volume = 0.4; this.theme.preload = 'auto';
+      this.theme.loop = true; this.theme.volume = 0.14; this.theme.preload = 'auto';  // soft BGM bed — stays well under the voice-over (1.0) and SFX
       // One-shot file SFX → [filename, volume]. Keys are referenced via audio.playFile(key).
       const FILE_SFX = {
         jump:       ['cartoon-jump-6462.ogg',        0.85],   // energy cell pops out
@@ -1005,6 +1031,7 @@ class AudioManager {
         headRotate: ['ByteHeadRotationSound.ogg',    0.7 ],   // Byte turns his head left / right
         tileAnim:   ['TutorialTileAnimationSound.ogg',0.7 ],  // near/far tutorial tiles glow in
         capThrow:   ['CapSound.ogg',                 0.9 ],   // pod lid pops + flies off the screen
+        confetti:   ['LBD 1/confettiSound.ogg',      0.9 ],   // celebratory popper on the win screen
       };
       for (const [k, [f, v]] of Object.entries(FILE_SFX)){
         this.files[k] = new Audio('audios/' + f);
@@ -1019,6 +1046,9 @@ class AudioManager {
         this.voices[k] = new Audio('audios/LBD 1/' + f);
         this.voices[k].volume = 1; this.voices[k].preload = 'auto';
       }
+      // Win-screen VO — lives in audios/ root, outside the LBD 1 pack.
+      this.voices.byteSaved = new Audio('audios/Byte Saved the Day.ogg');
+      this.voices.byteSaved.volume = 1; this.voices.byteSaved.preload = 'auto';
     }
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -1887,20 +1917,7 @@ class GameManager {
     // preload the farm backgrounds so the per-level swap is instant (no flash)
     for (let n = 2; n <= 9; n++){ const im = new Image(); im.src = `assets/${LEVEL_CONFIG[n].background}`; }
 
-    $('#replayBtn').addEventListener('click', (e) => {
-      // One tap only: a rapid double-tap could re-fire before the flipbook's own guard
-      // resets, so disable the button the instant it's used.
-      const btn = e.currentTarget;
-      if (btn.disabled) return;
-      btn.disabled = true;
-      // Embedded inside the flipbook? Tell the parent the game is finished so it turns
-      // to the next page. Opened standalone? Fall back to restarting the game.
-      if (window.parent && window.parent !== window) {
-        try { window.parent.postMessage({ source: 'lbd', type: 'lbd-complete' }, '*'); } catch (_) {}
-      } else {
-        this.restart();
-      }
-    });
+    $('#replayBtn').addEventListener('click', () => this.restart());
     stage.addEventListener('pointerdown', () => audio.resume(), { passive:true });
   }
 
@@ -2002,7 +2019,7 @@ class GameManager {
 
     // Scene 6 → screen transition into the game (curtain wipe; the intro pods are cleared under
     // it so beginLevel spawns the level fresh as the curtain lifts).
-    audio.playVoice('nearAndFar');               // 🔊 "Near and Far" — the lesson title
+    // (no "Near and Far" lesson-title VO exists in the pack — the wipe plays silently)
     await this.ui.fieldTransition('', () => {
       this.ui.hideHint();
       this.pods.forEach(p => p.destroy()); this.pods = [];
@@ -2069,9 +2086,9 @@ class GameManager {
     if (cfg.puzzle) this._instructionType = Math.random() < 0.5 ? 'near' : 'far';
     this.spawnPods(cfg, true);               // pods placed left/right of the pathway
     this.ui.moveTile(cfg.byteTop);
-    // Pin the battery HUD for the whole puzzle phase (hidden during the tutorial) so kids
-    // can always see their progress; slots light up in correctSequence as cells are earned.
-    if (cfg.puzzle) this.ui.showBattery();
+    // Pin the battery HUD for the WHOLE game — tutorial included — so kids always see their
+    // progress; slots light up in correctSequence as cells are earned (8 cells = full = win).
+    this.ui.showBattery();
     // 🔊 hint 1 — only the "near" variant exists in the VO pack; "far" shows text-only.
     const cellVo = this._instructionType === 'near' ? audio.playVoiceEnded('cellNear') : null;
     this.ui.showHint(this._levelCellText());  // 1) "The pod near/far Byte has a cell."
@@ -2149,8 +2166,9 @@ class GameManager {
     await sleep(880);                            // let it rise, grow, and hover
 
     await this.byte.retractArm();
-    if (this._cfg(this.level).puzzle){
-      // ...the cell floats to Byte and charges HIM (same as the tutorial)...
+    // The cell floats to Byte and charges HIM — same for the tutorial AND the puzzle levels,
+    // so every collected cell is recorded on the battery (energy consumed into the pack).
+    {
       const byteC = centerOf(this.byte.el);
       coin.style.transition = 'transform .72s cubic-bezier(.5,.05,.4,1), opacity .3s ease';
       coin.style.transform =
@@ -2162,7 +2180,7 @@ class GameManager {
       coin.style.opacity = '0'; coin.style.transform += ' scale(.2)';
       setTimeout(() => coin.remove(), 320);
       // ...THEN the pinned battery records it: the next slot lights up (fills backwards —
-      // rightmost empty slot first). The HUD stays on screen for the whole puzzle phase.
+      // rightmost empty slot first). The HUD stays on screen for the whole game.
       this.cells++;
       await sleep(450);                              // beat between Byte charging and the slot filling
       playSound('coin');
@@ -2171,21 +2189,6 @@ class GameManager {
       this.particles.emit('charge', slotC.x, slotC.y, 12);
       this.byte.cheer();
       await sleep(1000);                             // hold the moment for a beat
-      this.byte.stopCharge(); this.byte.faceForward();
-    } else {
-      // Tutorial (practice) cell: no battery yet — it floats to Byte and charges HIM.
-      const byteC = centerOf(this.byte.el);
-      coin.style.transition = 'transform .72s cubic-bezier(.5,.05,.4,1), opacity .3s ease';
-      coin.style.transform =
-        `translate(-50%,-50%) translate(${byteC.x - podC.x}px, ${byteC.y - openY}px) scale(1.32)`;
-      await sleep(720);
-      playSound('charge');
-      this.byte.startCharge();
-      this.particles.emit('charge', byteC.x, byteC.y, 20);
-      coin.style.opacity = '0'; coin.style.transform += ' scale(.2)';
-      setTimeout(() => coin.remove(), 320);
-      this.byte.cheer();
-      await sleep(700);
       this.byte.stopCharge(); this.byte.faceForward();
     }
 
@@ -2261,12 +2264,14 @@ class GameManager {
   async win(){
     this.ui.hideInstruction();
     playSound('win');
-    $('#replayBtn').disabled = false;  // fresh, tappable each time the splash appears
     $('#win').classList.add('show');   // reveal the PostLBD celebration splash
+    audio.playVoice('byteSaved');      // 🔊 "Byte saved the day!" — closing VO over the splash
+    audio.playFile('confetti');        // 🔊 celebratory popper, fired with the confetti
     this.particles.confetti();         // 5s two-sided fireworks (canvas-confetti)
   }
 
   restart(){
+    audio.stopVoice();                 // cut the "Byte saved the day" line if NEXT is tapped mid-VO
     $('#win').classList.remove('show');
     this.pods.forEach(p => p.destroy()); this.pods = [];
     this.level = 0; this.busy = false; this.canTap = false;
@@ -2277,35 +2282,6 @@ class GameManager {
     this.start();
   }
 
-  /** DEBUG: jump straight onto a level (0 = tutorial, 1+ = puzzle iterations; 9+ tests the
-      'independent' tier). Tears down in-flight state/overlays and runs beginLevel(). */
-  async jumpToLevel(idx){
-    idx = clamp(idx|0, 0, 99);
-    // tear down whatever's on screen
-    $('#win').classList.remove('show');
-    this.ui.welcome.classList.remove('show');
-    this.ui.hideHint(); this.ui.hidePathTiles(); this.ui.hideInstruction();
-    this.ui.fieldCurtain.classList.remove('show','part','closed');
-    this.ui.tapCatcher.classList.remove('on');               // release any pending waitForTap()
-    if (this.ui._dlg){ this.ui._dlg.img.remove(); this.ui._dlg = null; }
-    this.pods.forEach(p => p.destroy()); this.pods = [];
-    if (this.byte.stretch){ this.byte.stretch.remove(); this.byte.stretch = null; }
-    this.byte.stopCharge(); this.byte.faceForward();
-    audio.stopMove();
-    audio.stopVoice();                                        // cut any in-flight narration
-    this.busy = false; this.canTap = false;
-    this.tutorialStep = null;
-    // place Byte on the target level and start it
-    this.level = idx;
-    const cfg = this._cfg(idx);
-    if (!cfg.puzzle) this.ui.hideBattery();   // tutorial has no HUD; puzzle levels pin it in beginLevel
-    this.setField(idx);
-    this._resolvePathX();
-    this._placeByteColumn(this._pathX);
-    this.byte.setTopPercent(cfg.byteTop, true);
-    this.ui.moveTile(cfg.byteTop);
-    await this.beginLevel();
-  }
 }
 
 /* ============================================================
@@ -2315,7 +2291,8 @@ window.addEventListener('load', () => {
   audio.init();
   preloadTurnSvgs();                    // process the inlined turn SVGs so the arm can telescope
   const game = new GameManager();
-  window.game = game;                    // exposed for the debug level-jump widget
+  // (the old `window.game` global existed only for the removed debug level-jump widget —
+  // the embed bridge gets what it needs through window.__lbd below)
   const startScreen = $('#startScreen');
 
   // ---- Portrait gate -------------------------------------------------------------------
@@ -2337,8 +2314,13 @@ window.addEventListener('load', () => {
   // (when present) reports the live, post-bar size; we fall back to innerWidth/Height.
   const syncViewport = () => {
     const vv = window.visualViewport;
-    const w = (vv && vv.width)  || window.innerWidth;
-    const h = (vv && vv.height) || window.innerHeight;
+    // While the user is PINCH-zoomed (scale ≠ 1 — e.g. a trackpad pinch on desktop), visualViewport
+    // reports the zoomed-in SUB-REGION, not the whole window. Using that would shrink #stage and
+    // expose the page behind it ("the screen separates"). So when pinched, fall back to the layout
+    // viewport (innerWidth/Height) — the browser handles the magnification itself, stage stays full.
+    const pinched = vv && Math.abs(vv.scale - 1) > 0.01;
+    const w = (vv && !pinched && vv.width)  || window.innerWidth;
+    const h = (vv && !pinched && vv.height) || window.innerHeight;
     const r = document.documentElement.style;
     r.setProperty('--app-w', w + 'px');
     r.setProperty('--app-h', h + 'px');
@@ -2361,8 +2343,16 @@ window.addEventListener('load', () => {
     game.start();
   };
   playBtn.addEventListener('click', begin);
+
+  // The embed bridge (loaded last, see below) needs these to hook the real Play button
+  // and to know when the intro is on screen. Exposed ONLY for the bridge — no debug or
+  // cheat entry points are published.
+  window.__lbd = { playBtn, startScreen, game, audio };
+  window.dispatchEvent(new Event('lbd:boot'));
 });
 </script>
-<!-- screen debug overlay (dormant until you press D, or open with ?debug=1) -->
+<!-- Flipbook embed bridge — LAST, after the game's own runtime. Completely inert when
+     this page is opened standalone (window.parent === window). -->
+<script src="embed-bridge.js"></script>
 </body>
 </html>

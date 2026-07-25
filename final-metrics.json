@@ -1,0 +1,127 @@
+{
+  "label": "final",
+  "root": "C:\\Users\\Aniket Chauhan\\Desktop\\save the day",
+  "measuredAt": "2026-07-25T07:54:10.364Z",
+  "viewport": "1366x768",
+  "initialRequests": 19,
+  "initialTransferredBytes": 1187211,
+  "domContentLoadedMs": 306,
+  "windowLoadMs": 332,
+  "coverUsableMs": 67,
+  "startButtonAvailableMs": 1,
+  "consoleErrors": [],
+  "failedResponses": [],
+  "lbd": {
+    "gameRequestsBeforeLanding": 71,
+    "gameRequestsOnlyAfterLanding": 157,
+    "landingToInteractiveMs": 13,
+    "note": "Requests before landing = the background warm-up working as intended. A low 'only after landing' count means the learner waits on nothing."
+  },
+  "deployedPayload": {
+    "totalBytes": 40647428,
+    "files": 162,
+    "byKind": {
+      "code": 988690,
+      "video": 21020511,
+      "image": 12369854,
+      "audio": 6268373
+    }
+  },
+  "initialRequestList": [
+    {
+      "url": "index.html",
+      "status": 200,
+      "bytes": 8309
+    },
+    {
+      "url": "styles.css",
+      "status": 200,
+      "bytes": 58295
+    },
+    {
+      "url": "sfx-data.js",
+      "status": 200,
+      "bytes": 38451
+    },
+    {
+      "url": "preload.js",
+      "status": 200,
+      "bytes": 16700
+    },
+    {
+      "url": "script.js",
+      "status": 200,
+      "bytes": 83163
+    },
+    {
+      "url": "assets/play button.webp",
+      "status": 200,
+      "bytes": 49096
+    },
+    {
+      "url": "assets/coverpage.webp",
+      "status": 200,
+      "bytes": 156396
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/patrickhand/v25/LDI1apSQOAYtSuYWp8ZhfYe8XsLL.woff2",
+      "status": 200,
+      "bytes": 23944
+    },
+    {
+      "url": "assets/posters/1.webp",
+      "status": 200,
+      "bytes": 56086
+    },
+    {
+      "url": "assets/posters/2.webp",
+      "status": 200,
+      "bytes": 58342
+    },
+    {
+      "url": "assets/posters/3.webp",
+      "status": 200,
+      "bytes": 107918
+    },
+    {
+      "url": "LBD 1/assets/start.webp",
+      "status": 200,
+      "bytes": 195664
+    },
+    {
+      "url": "assets/posters/4.webp",
+      "status": 200,
+      "bytes": 66342
+    },
+    {
+      "url": "LBD 2/Right-and-Left/Assets/UI/start-screen.webp",
+      "status": 200,
+      "bytes": 165586
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fredoka:wght@500;600;700&family=Patrick+Hand&display=swap",
+      "status": 200,
+      "bytes": 7920
+    },
+    {
+      "url": "asset-manifest.json",
+      "status": 200,
+      "bytes": 36965
+    },
+    {
+      "url": "sfx/cover page flip.ogg",
+      "status": 200,
+      "bytes": 5808
+    },
+    {
+      "url": "sfx/Page flip.ogg",
+      "status": 200,
+      "bytes": 22494
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/fredoka/v17/X7n64b87HvSqjb_WIi2yDCRwoQ_k7367_DWu89U.woff2",
+      "status": 200,
+      "bytes": 29732
+    }
+  ]
+}

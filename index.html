@@ -91,6 +91,14 @@
                      full-bleed thumbnail with a futuristic play button.) -->
                 <div class="back-fill"></div>
                 <div class="curl"></div>
+                <!-- STAGE A LOADER — shown in the Play button's place while the shell
+                     assets download. preload.js drives it and reveals the button
+                     (with a pop-in) only once Stage A hits 100%. -->
+                <div class="shell-loader" id="shellLoader" role="progressbar"
+                     aria-label="Loading the story" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div class="shell-loader-track"><div class="shell-loader-fill" id="shellLoaderFill"></div></div>
+                  <div class="shell-loader-pct" id="shellLoaderPct">0%</div>
+                </div>
                 <button class="play-btn" id="hint" type="button" aria-label="Play — open the book"></button>
               </div>
               <!-- BACK of the front cover: intentionally BLANK (plain dark board). -->
@@ -144,19 +152,24 @@
 <button class="arrow prev" id="prev" aria-label="Previous page">‹</button>
 <button class="arrow next" id="next" aria-label="Next page">›</button>
 
-<!-- EMBEDDED LBD GAME OVERLAY ("Byte's Energy Hunt").
-     A body-level element (NOT inside .scene/.flip-scale) so it can expand to a TRUE
-     full-screen box — a CSS transform on .flip-scale would otherwise trap the fixed
-     positioning and break real fullscreen. script.js sizes/positions it and toggles
-     .fullscreen; the game is loaded into #lbdFrame only when you reach its page. -->
-<div class="lbd-stage" id="lbdStage" aria-hidden="true">
-  <iframe id="lbdFrame" title="Byte's Energy Hunt — game"
+<!-- EMBEDDED LBD GAME OVERLAY (both games share this one iframe).
+     A DIRECT body-level element — NOT inside .scene / .flip-scale / a page leaf /
+     any element using CSS 3D transforms — because a transformed ancestor traps
+     position:fixed and true fullscreen would break. script.js sizes it over the
+     game page's content frame, then .lbd-is-fullscreen expands it to the viewport.
+     Starts at about:blank; warmed in the background after window.load. -->
+<div class="lbd-stage" id="lbdOverlay" aria-hidden="true">
+  <iframe id="lbdFrame" title="Interactive learning game"
+          src="about:blank"
           allow="autoplay; fullscreen" allowfullscreen
           referrerpolicy="no-referrer"></iframe>
 </div>
 
 <!-- Inlined one-shot SFX (base64) for glitch-free Web Audio playback on file:// -->
 <script src="sfx-data.js"></script>
+<!-- Two-stage asset preloader: Stage A gates the Start button, Stage B warms the
+     rest during idle time. Must run BEFORE script.js so the button starts hidden. -->
+<script src="preload.js"></script>
 <!-- All behaviour lives in script.js -->
 <script src="script.js"></script>
 </body>

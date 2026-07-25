@@ -1,0 +1,147 @@
+{
+  "label": "baseline",
+  "root": "C:\\Users\\ANIKET~1\\AppData\\Local\\Temp\\claude\\c--Users-Aniket-Chauhan-Desktop-save-the-day\\b3c2788c-8df6-49ac-8119-b89f6a70cbd7\\scratchpad\\baseline",
+  "measuredAt": "2026-07-25T07:53:26.601Z",
+  "viewport": "1366x768",
+  "initialRequests": 21,
+  "initialTransferredBytes": 8030482,
+  "domContentLoadedMs": 274,
+  "windowLoadMs": 476,
+  "coverUsableMs": 0,
+  "startButtonAvailableMs": 0,
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failedResponses": [
+    "404 http://127.0.0.1:8199/assets/posters/1.webp",
+    "404 http://127.0.0.1:8199/assets/posters/2.webp",
+    "404 http://127.0.0.1:8199/assets/posters/3.webp",
+    "404 http://127.0.0.1:8199/assets/posters/4.webp",
+    "404 http://127.0.0.1:8199/assets/hand-nudge.png",
+    "404 http://127.0.0.1:8199/sfx/the story night.ogg"
+  ],
+  "lbd": null,
+  "deployedPayload": {
+    "totalBytes": 72375657,
+    "files": 151,
+    "byKind": {
+      "other": 77,
+      "video": 48585912,
+      "image": 16693216,
+      "code": 976908,
+      "audio": 6119544
+    }
+  },
+  "initialRequestList": [
+    {
+      "url": "index.html",
+      "status": 200,
+      "bytes": 7520
+    },
+    {
+      "url": "styles.css",
+      "status": 200,
+      "bytes": 56105
+    },
+    {
+      "url": "sfx-data.js",
+      "status": 200,
+      "bytes": 138583
+    },
+    {
+      "url": "script.js",
+      "status": 200,
+      "bytes": 63742
+    },
+    {
+      "url": "assets/play button.png",
+      "status": 200,
+      "bytes": 935347
+    },
+    {
+      "url": "assets/coverpage.png",
+      "status": 200,
+      "bytes": 2405294
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fredoka:wght@500;600;700&family=Patrick+Hand&display=swap",
+      "status": 200,
+      "bytes": 7920
+    },
+    {
+      "url": "LBD 1/assets/Background.webp",
+      "status": 200,
+      "bytes": 95106
+    },
+    {
+      "url": "LBD 2/Right-and-Left/Assets/UI/start-screen.webp",
+      "status": 200,
+      "bytes": 165586
+    },
+    {
+      "url": "assets/posters/1.webp",
+      "status": 404,
+      "bytes": 37
+    },
+    {
+      "url": "assets/posters/2.webp",
+      "status": 404,
+      "bytes": 37
+    },
+    {
+      "url": "assets/posters/3.webp",
+      "status": 404,
+      "bytes": 37
+    },
+    {
+      "url": "assets/posters/4.webp",
+      "status": 404,
+      "bytes": 37
+    },
+    {
+      "url": "assets/hand-nudge.png",
+      "status": 404,
+      "bytes": 37
+    },
+    {
+      "url": "LBD 1/audios/themeMusic.ogg",
+      "status": 206,
+      "bytes": 3932222
+    },
+    {
+      "url": "sfx/Page flip.mp3",
+      "status": 206,
+      "bytes": 83591
+    },
+    {
+      "url": "sfx/cover page flip.mp3",
+      "status": 206,
+      "bytes": 19968
+    },
+    {
+      "url": "sfx/the story night.ogg",
+      "status": 404,
+      "bytes": 39
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/patrickhand/v25/LDI1apSQOAYtSuYWp8ZhfYe8XsLL.woff2",
+      "status": 200,
+      "bytes": 23944
+    },
+    {
+      "url": "LBD 1/audios/themeMusic.ogg",
+      "status": 206,
+      "bytes": 65598
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/fredoka/v17/X7n64b87HvSqjb_WIi2yDCRwoQ_k7367_DWu89U.woff2",
+      "status": 200,
+      "bytes": 29732
+    }
+  ]
+}

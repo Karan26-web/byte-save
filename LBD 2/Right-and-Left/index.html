@@ -14,12 +14,18 @@
     /* the letterboxed world frame's size & offsets — lets viewport-fixed UI anchor to the FRAME
        (on letterboxed devices the frame is smaller than the viewport, so UI must "move in" with it) */
     --world-w:min(100vw, 177.78vh); --world-h:min(100vh, 56.25vw);
-    --world-x:calc((100vw - var(--world-w))/2); --world-y:calc((100vh - var(--world-h))/2); }
+    --world-x:calc((100vw - var(--world-w))/2); --world-y:calc((100vh - var(--world-h))/2);
+    /* 1% of the PLAYFIELD height — the proportional unit for all overlay UI (panel, buttons),
+       so on letterboxed screens they scale to the frame, never to the raw (taller) viewport */
+    --u:calc(var(--world-h)/100); }
 
   #stage{ position:fixed; inset:0; overflow:hidden; }
   .screen{ position:absolute; inset:0; }
   .hide{ display:none !important; }
   .full{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; user-select:none; }
+  /* images are draggable by default — a child could drag Byte / a house off as a native image-drag
+     (opening the raw .webp in a new tab, and fighting the tap handlers). Kill it everywhere. */
+  img{ -webkit-user-drag:none; -khtml-user-drag:none; user-drag:none; -webkit-user-select:none; user-select:none; }
 
   /* GAME world mapped to a 1920x1080 frame, FIT inside the viewport (contain).
      Cover-fit cropped the sides on non-16:9 devices and cut off the houses; now the whole
@@ -159,14 +165,21 @@
 
   /* Instruction panel — the wooden signboard art (9-sliced so the frame stays crisp at any text width) */
   #bubble{
-    position:fixed; left:0; right:0; margin:0 auto; top:12px; transform:translateY(-6px) scale(.98); opacity:0;
+    /* anchored INSIDE the playfield's top grass band (not the viewport top) so it rides in with
+       the frame on letterboxed screens instead of floating up in the green letterbox above it */
+    position:fixed; left:0; right:0; margin:0 auto; top:calc(var(--world-y) + var(--world-h)*.02);
+    transform:translateY(-6px) scale(.98); opacity:0;
     background:none; color:#111;
-    width:fit-content; max-width:94vw; box-sizing:border-box;
-    padding:8px 26px; display:flex; align-items:center; justify-content:center;
-    border-style:solid; border-width:34px 32px 28px 35px;
+    /* width capped to the central sky band (≈half the world frame, centred) so the signboard
+       never reaches the houses hugging either edge; chrome scales with the PLAYFIELD (--u), so it
+       stays a small, proportional strip on short/letterboxed screens instead of a fixed slab that
+       swallowed the roofs of the higher houses. */
+    width:fit-content; max-width:min(92vw, calc(var(--world-w) * 0.5)); box-sizing:border-box;
+    padding:clamp(4px,var(--u),8px) clamp(12px,calc(var(--world-w)*.024),26px); display:flex; align-items:center; justify-content:center;
+    border-style:solid; border-width:clamp(18px,calc(var(--u)*3.2),34px) clamp(16px,calc(var(--u)*3),32px) clamp(14px,calc(var(--u)*2.6),28px) clamp(18px,calc(var(--u)*3.3),35px);
     border-image:url("Assets/UI/InstructionPanel.svg") 62 58 52 64 fill stretch;
     filter:drop-shadow(0 6px 10px rgba(80,45,10,.28));
-    font-family:"Poppins",sans-serif; font-size:clamp(19px,3.3vh,33px); font-weight:600; line-height:1.25; text-align:center;
+    font-family:"Poppins",sans-serif; font-size:clamp(17px,calc(var(--u)*3),33px); font-weight:600; line-height:1.2; text-align:center;
     transition:transform .3s cubic-bezier(.34,1.56,.64,1), opacity .26s ease; z-index:20; pointer-events:none;
   }
   #bubble.show{ transform:translateY(0) scale(1); opacity:1; }
@@ -203,7 +216,7 @@
      ================================================================================ */
   .navBtn{
     /* ---- knobs: size + palette ---- */
-    --nav-h: clamp(58px, 12vh, 136px);           /* button height; everything scales from it; trimmed so the instruction panel reads as the hero */
+    --nav-h: clamp(58px, calc(var(--u)*12), 136px);   /* button height; everything scales from it — sized to the PLAYFIELD (--u), not the raw viewport, so it stays proportional when letterboxed */
     --nav-rim:    #f7ead0;                       /* thick creamy ivory outer border */
     --nav-line:   #eda512;                       /* thin warm golden outline inside the rim */
     --nav-top:    #ffdb4d;                       /* gradient: brighter yellow top */
@@ -306,8 +319,16 @@
   @keyframes btnPicked{ 0%{ transform:scale(1); } 40%{ transform:scale(1.3); } 100%{ transform:scale(1); } }
   .navBtn:disabled{ opacity:0; pointer-events:none; }
   /* anchored to the WORLD FRAME, not the viewport — on letterboxed screens they ride inward with the playfield */
-  #leftBtn{ bottom:calc(var(--world-y) + var(--world-h)*.07); right:calc(var(--world-x) + var(--world-w)*.54 + 35px); }
+  #leftBtn{ bottom:calc(var(--world-y) + var(--world-h)*.07); right:calc(var(--world-x) + var(--world-w)*.54 + var(--world-w)*.018); }
   #rightBtn{ bottom:calc(var(--world-y) + var(--world-h)*.07); left:calc(var(--world-x) + var(--world-w)*.54); }
+
+  /* end-screen "NEXT" — pinned to the bottom-right corner of the world frame (right-anchored,
+     no translateX, so the .navBtn hover/press scale transforms stay intact).
+     Hidden until revealEndBtn() runs: the closing VO plays first, THEN the button pops. */
+  #endBtn{ right:calc(var(--world-x) + var(--world-w)*.03); left:auto; width:fit-content;
+    bottom:calc(var(--world-y) + var(--world-h)*.05);
+    opacity:0; pointer-events:none; }
+  #endBtn.show{ opacity:1; pointer-events:auto; animation:btnPop .5s cubic-bezier(.2,.8,.3,1); }
 
   #btnOverlay{ position:fixed; left:0; right:0; bottom:0; height:30%; z-index:18; pointer-events:none;
     background:linear-gradient(0deg, rgba(0,0,0,.6) 0%, rgba(0,0,0,.25) 45%, rgba(0,0,0,0) 100%);
@@ -335,19 +356,14 @@
   #startBtn:hover{ animation:none; transform:translateX(-50%) scale(1.07); }
   #startBtn:active{ animation:none; transform:translateX(-50%) scale(.95); }
   @keyframes startPulse{ 0%,100%{ transform:translateX(-50%) scale(1); } 50%{ transform:translateX(-50%) scale(1.07); } }
-  /* "Next" button on the celebration end screen — shown only while #endScreen is
-     visible (its .hide parent is display:none). Taps continue the flipbook story. */
-  #lbdNextBtn{
-    position:fixed; right:clamp(16px,4vw,48px); bottom:clamp(16px,6vh,54px); z-index:30;
-    padding:.62em 1.4em; font:700 clamp(15px,2.3vw,23px)/1 system-ui,"Segoe UI",sans-serif;
-    color:#fff; background:linear-gradient(#ffab3d,#f2701a); border:none;
-    border-radius:999px; cursor:pointer; box-shadow:0 8px 20px rgba(120,60,10,.5);
-    display:inline-flex; align-items:center; gap:.45em; -webkit-tap-highlight-color:transparent;
-    animation:lbdNextPulse 1.15s ease-in-out infinite;
-  }
-  #lbdNextBtn:hover{ animation:none; transform:scale(1.06); }
-  #lbdNextBtn:active{ animation:none; transform:scale(.95); }
-  @keyframes lbdNextPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.06); } }
+  /* while the essentials (map, voice-over, music) are still downloading, Play holds:
+     the pulse stops, the icon dims, and a spinner turns so the wait reads as loading, not a dead button */
+  #startBtn.loading{ animation:none; cursor:default; }
+  #startBtn.loading img{ opacity:.32; }
+  #startBtn.loading::after{ content:""; position:absolute; left:50%; top:50%; width:40%; aspect-ratio:1;
+    transform:translate(-50%,-50%); border-radius:50%;
+    border:4px solid rgba(255,255,255,.35); border-top-color:#fff; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:translate(-50%,-50%) rotate(360deg); } }
 
   /* ===== Welcome overlay — blurs the PLAYSCREEN (game map), Figma title (Lilita One, node 353:703) ===== */
   #welcome{ position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
@@ -467,8 +483,8 @@
     <div id="endScreen" class="screen hide">
       <!-- celebration video, WITH its own audio (background music fades out as it starts) — plays ONCE and holds on its last frame -->
       <video id="endVideo" class="full" playsinline preload="auto" aria-label="Well done"><source src="Assets/Video/Lastscreen.webm" type="video/webm" /></video>
-      <!-- Continue: when embedded in the flipbook this turns to the next page; standalone it replays. -->
-      <button id="lbdNextBtn" type="button" aria-label="Continue">Next <span aria-hidden="true">▶</span></button>
+      <!-- appears only AFTER the celebration video finishes — replays the game from the start -->
+      <button id="endBtn" type="button" class="navBtn" aria-label="Next"><span class="lbl">NEXT</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12M12 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
 
     <!-- WELCOME — blurs the playscreen and shows the Figma title art before the round begins -->
@@ -996,7 +1012,7 @@ function loadLevel(i){ levelIdx=i; LEVEL=LEVELS[i]; WP=LEVEL.wp; buildLevel(LEVE
 
 /* ===================== Elements ===================== */
 const $=id=>document.getElementById(id);
-const startScreen=$("startScreen"), gameScreen=$("gameScreen"), endScreen=$("endScreen"), endVideo=$("endVideo");
+const startScreen=$("startScreen"), gameScreen=$("gameScreen"), endScreen=$("endScreen"), endVideo=$("endVideo"), endBtn=$("endBtn");
 const byteWrap=$("byteWrap"), byteAnim=$("byteAnim"), byte=$("byte"), byteShadow=$("byteShadow");
 const bubble=$("bubble"), bubbleText=$("bubbleText"), leftBtn=$("leftBtn"), rightBtn=$("rightBtn");
 const parcel=$("parcel");
@@ -1237,8 +1253,8 @@ async function houseHappy(side){   // the house gives a joyful squash-stretch ho
 /* ===================== Config + state ===================== */
 const RETRY_LEVELS=3;   // the first three levels are practice: a missed delivery REPLAYS the level (new colours); from level 4 it's one shot
 let target="left", targetColor="blue", score=0, round=0, busy=false, runActive=false, curSprite="back", lastFootX=0, lastFootY=0;
-/* ?lvl=N in the URL starts play from level N (handy for testing a single level) */
-const START_LVL = (()=>{ const n=+new URLSearchParams(location.search).get("lvl"); return n>=1&&n<=LEVELS.length ? n-1 : 0; })();
+/* Play always begins at the first level — no URL level-skip. */
+const START_LVL = 0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 /* ===================== Byte placement (foot-anchored) ===================== */
@@ -1506,11 +1522,15 @@ function sfxBark(){            // synth fallback — 3 rough woofs with an outdo
    ONE shared channel: a new line stops the one still playing (no overlapping voices),
    the background music ducks while a line plays, and voSay() resolves when the line
    ends — so scenes can pace on it (await) or just let it colour a moment (fire & forget). */
-const VO={}; ["byte-delivery-mission","help-byte","deliver-the-parcels",
+/* NOTE: "byte-delivery-mission.ogg" was removed from this list — that file is not in the
+   VO pack, so every run 404'd on it and the opening cloud sweep played no title line
+   anyway. The mission is still narrated by "help-byte" + "deliver-the-parcels" below. */
+const VO={}; ["help-byte","deliver-the-parcels",
   "deliver-red","deliver-blue","deliver-yellow","left-turn","right-turn",
   "moving-left","moving-right","no-road","wrong-delivery",
   "delivered","parcel-delivered","great-job"
 ].forEach(n=>{ const a=new Audio("Audio/VO/"+n+".ogg"); a.preload="auto"; VO[n]=a; });
+VO["byte-saved-the-day"]=new Audio("Audio/Byte Saved the Day.ogg"); VO["byte-saved-the-day"].preload="auto";  // closing line — plays once the celebration video ends, as NEXT appears
 let voNow=null;
 function voSay(name){
   const a=VO[name]; if(!a) return Promise.resolve();
@@ -1531,12 +1551,13 @@ function voSay(name){
   });
 }
 
-function confetti(){
+function confetti(parent){
+  const host = parent || gameScreen;             // defaults to the play map; the finale bursts over the end screen
   const colors=["#ff6a3d","#23a76a","#ffce3a","#2bb3e0","#e84393","#fff"];
   for(let i=0;i<70;i++){ const c=document.createElement("div"); c.className="confetti";
     c.style.left=Math.random()*100+"%"; c.style.background=colors[i%colors.length];
     const fall=1000+Math.random()*1000; c.style.transition=`transform ${fall}ms linear, opacity ${fall}ms`;
-    gameScreen.appendChild(c);
+    host.appendChild(c);
     requestAnimationFrame(()=>{ c.style.transform=`translateY(${window.innerHeight+50}px) rotate(${Math.random()*720}deg)`; c.style.opacity=.2; });
     setTimeout(()=>c.remove(), fall+100);
   }
@@ -1648,7 +1669,7 @@ async function welcomeThenStart(){        // Play pressed → clouds reveal the 
   if(busy) return;
   if(runActive){ location.reload(); return; }   // a round is mid-flight (e.g. start screen re-shown over it) — restart clean, never layer a second game loop
   busy=true;
-  voSay("byte-delivery-mission");                 // title VO over the opening cloud sweep
+  // (no title VO exists for the opening cloud sweep — it plays over the music alone)
   showButtons(false); hideBubble(); hideParcel(); hideDog();
   await cloudTransition("", ()=>{
     startScreen.classList.add("hide"); endScreen.classList.add("hide"); gameScreen.classList.remove("hide");
@@ -1851,9 +1872,15 @@ async function playLevel(){
   if(levelIdx+1 >= LEVELS.length){ endGame(); busy=false; return; }
   busy=false; nextRound(levelIdx+1);
 }
+let endBtnShown=false;
+function revealEndBtn(){                           // finale: "Byte saved the day" VO plays FIRST, NEXT pops once the line lands
+  if(endBtnShown) return; endBtnShown=true;
+  voSay("byte-saved-the-day").then(()=>{ endBtn.classList.add("show"); sfxPop(); });
+}
 async function endGame(){
-  runActive=false;                                // run finished — Play Again may re-enter the classic flow
+  runActive=false;                                // run finished — NEXT may re-enter the classic flow
   stopLook();
+  endBtnShown=false; endBtn.classList.remove("show");   // stays hidden until the video finishes
   voSay("great-job");                             // lands over the cloud sweep, before the video's own audio takes over
   await cloudTransition("Well done!", ()=>{     // clouds cover the map, the end screen appears underneath
     gameScreen.classList.add("hide");
@@ -1861,13 +1888,15 @@ async function endGame(){
     stopMusic();                                  // the video takes over — fade the background track out
     try{
       endVideo.loop=false;                        // celebration plays ONCE — never loop back to the start
-      endVideo.onended=()=>{ try{ endVideo.pause(); endVideo.currentTime=Math.max(0, endVideo.duration-0.05); }catch(e){} };  // hold on the last frame
+      endVideo.onended=()=>{ try{ endVideo.pause(); endVideo.currentTime=Math.max(0, endVideo.duration-0.05); }catch(e){} };  // just hold on the last frame
       endVideo.currentTime=0; endVideo.muted=false;
       const p=endVideo.play();
       if(p&&p.catch) p.catch(()=>{ endVideo.muted=true; const q=endVideo.play(); if(q&&q.catch) q.catch(()=>{}); });  // audio blocked → at least keep the visuals
     }catch(e){}
   });
+  confetti(endScreen);                            // confetti rains down over the revealed end screen
   sfxWin();
+  revealEndBtn();                                 // the last screen has JUST appeared — closing VO now, NEXT pops as the line lands
 }
 
 /* ===================== Controls ===================== */
@@ -1883,19 +1912,8 @@ async function lockLandscape(){
   }catch(e){}   // unsupported / denied → the rotate overlay still guards portrait play
 }
 $("startBtn").addEventListener("click", ()=>{ ensureAudio(); lockLandscape(); sfxClick(); welcomeThenStart(); });
-/* End-screen "Next": embedded in the flipbook → tell the parent the game is finished
-   (it turns to the next page); opened standalone → replay from the top. */
-(function(){
-  const nb=$("lbdNextBtn"); if(!nb) return;
-  nb.addEventListener("click", ()=>{
-    try{ sfxClick(); }catch(e){}
-    if(window.parent && window.parent!==window){
-      try{ window.parent.postMessage({source:"lbd", type:"lbd-complete"}, "*"); }catch(e){}
-    } else {
-      location.reload();
-    }
-  });
-})();
+/* NEXT — replays the whole game from level 1 (welcomeThenStart resets it; runActive is false here) */
+endBtn.addEventListener("click", ()=>{ if(busy) return; ensureAudio(); sfxClick(); endBtn.classList.remove("show"); endBtnShown=false; welcomeThenStart(); });
 function pick(side){                       // every way of answering funnels through here
   const btn = side==="left" ? leftBtn : rightBtn;
   if(busy || btn.disabled || !pendingPick) return;
@@ -1911,6 +1929,9 @@ document.addEventListener("keydown", e=>{
   if(e.key==="ArrowLeft")  pick("left");
   if(e.key==="ArrowRight") pick("right");
 });
+/* cross-browser backstop for the native image-drag (Firefox ignores -webkit-user-drag):
+   the game has no legitimate drag, so cancel every drag before it can lift an image off */
+document.addEventListener("dragstart", e=>e.preventDefault());
 /* houses are just playful to tap (a happy jiggle) — answering happens ONLY via the Left/Right buttons */
 function houseTap(side){
   ensureAudio();
@@ -1928,25 +1949,45 @@ byteWrap.addEventListener("pointerdown", ()=>{
   setTimeout(()=>{ byteAnim.classList.remove("cheer"); if(wasIdle) byteAnim.classList.add("idle"); }, 620);
 });
 
+/* ===================== Preload gate =====================
+   Hold Play inert until the essentials are actually decoded/buffered, so the background map
+   and the opening voice-over never pop in late after the clouds open. The scene preloader above
+   warms the houses/dog/parcel; this adds the map itself, the background music, and the opening
+   voice lines (Audio elements only fetch when nudged), then flips Play live. A hard timeout
+   guarantees the player is never trapped behind a single stalled/404'd asset. */
+(function preloadGate(){
+  const btn=$("startBtn");
+  const imgs=["Assets/Background.webp","Assets/UI/start-screen.webp",
+    "Assets/Byte/stand-back-parcel.webp","Assets/Byte/walk-up-parcel.webp","Assets/Byte/walk-side-parcel.webp",
+    ...Object.keys(COLOR_NAME).flatMap(c=>["","open"].map(v=>houseFile(c,v)))];
+  const auds=[bgm, VO["help-byte"], VO["deliver-the-parcels"],
+    VO["deliver-red"], VO["deliver-blue"], VO["deliver-yellow"]];
+  let pending=imgs.length+auds.length, settled=false;
+  const release=()=>{ if(settled) return; settled=true; btn.classList.remove("loading"); btn.disabled=false; };
+  const one=()=>{ if(settled) return; if(--pending<=0) release(); };
+  btn.disabled=true; btn.classList.add("loading");
+  imgs.forEach(src=>{ const im=new Image();
+    if(im.decode){ im.src=src; im.decode().then(one,one); } else { im.onload=im.onerror=one; im.src=src; } });
+  auds.forEach(a=>{ let fired=false; const go=()=>{ if(fired)return; fired=true; one(); };
+    a.addEventListener("canplaythrough",go,{once:true}); a.addEventListener("error",go,{once:true});
+    try{ a.load(); }catch(e){ go(); } });
+  setTimeout(release, 6000);   // never trap the player behind a stalled asset
+})();
+
 /* initial placement — build the level map (field + tiled roads + house geometry), then park Byte */
 (function(){
   loadLevel(START_LVL); const sf=feetOf(WP.start); setByte("backParcel", sf.x, sf.y);
-  if(new URLSearchParams(location.search).get("map")){   // ?map=1 — bare map preview for testing (no start screen)
-    startScreen.classList.add("hide"); gameScreen.classList.remove("hide"); pickColors();
-    if(new URLSearchParams(location.search).get("dogtest")){   // &dogtest=1 — loop the hand-over scene for tuning
-      (async()=>{ await sleep(800); for(;;){ await dogCatchScene("left", feetOf(WP.leftHouse)); await sleep(400); } })();
-    }
-  }
-  const AUTO=new URLSearchParams(location.search).get("auto");   // ?auto=correct|wrong|idle — self-playing test drive
-  if(AUTO){
-    setTimeout(()=>$("startBtn").click(), 400);
-    if(AUTO!=="idle") setInterval(()=>{ if(leftBtn.disabled || busy) return;
-      // single-road turns carry a hint (the only way with road); the deciding turn goes by the target
-      const ans = autoAnswer || (AUTO==="wrong" ? (target==="left"?"right":"left") : target);
-      pick(ans);
-    }, 500);
-  }
 })();
+
+/* The embed bridge (loaded last) needs the real Play button and the end-of-game hooks.
+   Exposed ONLY for the bridge — no debug, cheat or self-play entry points are published. */
+/* `levelIdx` / `runActive` are read-only PROGRESS (which round we're on), not answers —
+   nothing here reveals `target`, so there is no way to shortcut a delivery. */
+window.__lbd = { playBtn: $("startBtn"), startScreen, endScreen, endVideo, endBtn, VO, bgm,
+  get levelIdx(){ return levelIdx; }, get runActive(){ return runActive; },
+  get awaitingPick(){ return !!pendingPick; } };
+window.dispatchEvent(new Event("lbd:boot"));
 </script>
+<script src="embed-bridge.js"></script>
 </body>
 </html>

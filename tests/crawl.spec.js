@@ -210,8 +210,10 @@ test("GPU: page-turn midpoint, neighbours and post-fullscreen return show no gho
   await page.waitForTimeout(900);
   files.fullscreen = await shot(page, "gpu-lbd-fullscreen", info);
 
-  await page.evaluate(() => document.getElementById("homeBtn").click());
-  await page.waitForFunction(() => !document.body.classList.contains("is-open"), null, { timeout: 12000 });
+  // Home used to be the bail-out from a live fullscreen game; with that button gone,
+  // COMPLETING the game is the only way back, so exit the way the game itself does.
+  await frame.evaluate(() => parent.postMessage({ source: "lbd", type: "lbd-complete" }, "*"));
+  await page.waitForFunction(() => !window.Flipbook.gateState().lbdFullscreen, null, { timeout: 12000 });
   await page.waitForTimeout(700);
   files.afterFullscreen = await shot(page, "gpu-return-from-fullscreen", info);
 

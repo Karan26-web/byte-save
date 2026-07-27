@@ -126,17 +126,16 @@
   <!-- (page counter removed) -->
 </div>
 
-<!-- HOME button — top-left, shown only while reading (hidden on the cover, the
-     last page and the end). Closes the book (reverse of the opening swing) back
-     to the front cover. -->
-<button class="home-btn" id="homeBtn" type="button" aria-label="Back to the cover">
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="currentColor"/>
-  </svg>
-</button>
+<!-- (The HOME button was REMOVED. It was the third control fighting for the screen
+     edges — it shared the right edge with the forward arrow and hung off the top of
+     the viewport — and the only route back to the cover is now Replay on THE END
+     page. Nothing else referenced it: goHome() went with it.) -->
 
-<!-- Flip arrows OUTSIDE the book, fixed at the viewport's bottom corners
-     (bottom-left = back, bottom-right = forward). -->
+<!-- The ONLY prev/next controls. Anchored to the BOOK's rendered bottom edge (see
+     --book-bottom, published by fitScale) rather than the viewport, so they always
+     land in a guaranteed-clear gutter below the book at any aspect ratio.
+     (The duplicate .arrow.prev / .arrow.next circles were REMOVED — they were
+     display:none dead weight with dead JS refs behind them.) -->
 <button class="corner-arrow back" id="cornerPrev" aria-label="Previous page">
   <svg viewBox="0 0 48 48" aria-hidden="true">
     <path d="M46 19 L30 5 L30 12 C20 11 11 15 6 30 L12 33 C18 24 22 24 30 24 L30 33 Z" fill="currentColor"/>
@@ -147,10 +146,6 @@
     <path d="M46 19 L30 5 L30 12 C20 11 11 15 6 30 L12 33 C18 24 22 24 30 24 L30 33 Z" fill="currentColor"/>
   </svg>
 </button>
-
-<!-- (legacy hidden nav elements kept only so existing JS refs stay valid) -->
-<button class="arrow prev" id="prev" aria-label="Previous page">‹</button>
-<button class="arrow next" id="next" aria-label="Next page">›</button>
 
 <!-- EMBEDDED LBD GAME OVERLAY (both games share this one iframe).
      A DIRECT body-level element — NOT inside .scene / .flip-scale / a page leaf /

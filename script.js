@@ -289,12 +289,11 @@ const bookPop    = document.getElementById("bookPop");
 const bookFloat  = document.getElementById("bookFloat");
 const cover      = document.getElementById("cover");
 const hint       = document.getElementById("hint");
-const prevBtn    = document.getElementById("prev");
-const nextBtn    = document.getElementById("next");
+/* The corner arrows are the ONE set of prev/next controls (the #prev/#next circles
+   and the Home button were removed along with their dead refs). */
 const cornerPrev  = document.getElementById("cornerPrev");
 const cornerNext  = document.getElementById("cornerNext");
 const replayBtn   = document.getElementById("replayBtn");   // lives on the THE END page (built above)
-const homeBtn     = document.getElementById("homeBtn");
 
 /* ==========================================================================
    LBD OVERLAY  —  the two embedded games, each shown as one page.
@@ -536,31 +535,87 @@ let _openTimer = null;   // pending "cover finished opening" timer
 let _homeTimer = null;   // pending "cover finished closing → back to the cover" timer
 
 /* ---- Responsive: scale the FIXED 1280x720 book to fit the viewport --------
-   ORIGINAL fit — 96% of width / 84% of height — so the book size and the arrows
-   (which stay at the viewport's bottom corners, via CSS) look exactly as before.
-   The ONLY addition is a safeguard on SHORT screens: never let the book grow so
-   tall that it covers the bottom controls. That safeguard changes nothing on
-   normal/large screens (there the 0.84 factor is the smaller of the two); it only
-   shrinks the book a little on small screens so the arrows + progress stay visible.
-   Only this CSS transform scale changes, so the paper curl is never distorted. */
+   The book stays internally 1280x720 and is ONLY transform-scaled, so turn.js's
+   paper-curl maths is never distorted. This function does two jobs, in order:
+
+     1. RESERVE A REAL GUTTER. The controls are sized by --nav-btn in CSS; we subtract
+        the FULL control band (edge inset + button + gap) from the available height
+        BEFORE solving for the scale, so the book shrinks to make room for the
+        controls and never the other way round.
+     2. PUBLISH THE BOOK'S GEOMETRY on :root, so CSS can position the controls against
+        the BOOK's edges instead of the viewport's. Those were two independent
+        coordinate systems, which is exactly what let the buttons drift onto the book
+        (and off the screen) on every viewport that wasn't 16:9. */
+
+/* .book-frame outsets the 1280x720 page area — styles.css has
+   `inset: -16px -42px -16px -16px` — so the book's TRUE visible box is bigger than
+   .flip-scale, and ASYMMETRIC: 42px on the right, 16px on the other three sides, in
+   BOOK space (i.e. these scale with the book). The old fit treated the outset as a
+   symmetric 42px and left it out of the height solve entirely. */
+const FRAME_T = 16, FRAME_R = 42, FRAME_B = 16, FRAME_L = 16;
+/* Floor of --nav-edge-y in styles.css. JS cannot evaluate env(), so this mirrors only
+   the floor; a larger real safe-area inset makes CSS keep the button on-screen, which
+   the `min()` in .corner-arrow handles (see the note there). */
+const NAV_EDGE = 10;
+/* Breathing room on each side, matching the original 0.88-of-width fit. */
+const SIDE_MARGIN = 0.06;
+
+/* MUST stay in lockstep with --nav-btn in styles.css. A clamp()/min() chain cannot be
+   read back out of getComputedStyle (it returns the unevaluated token stream), so the
+   single token is mirrored here — and tests/nav-layout.spec.js asserts the two agree.
+   clamp(MIN, V, MAX) === max(MIN, min(V, MAX)). */
+function navBtnPx() {
+  const w = window.innerWidth, h = window.innerHeight;
+  return Math.max(56, Math.min(0.08 * Math.min(w, h), 0.22 * h, 0.30 * w, 112));
+}
+
 function fitScale() {
-  // The Back / Next / Home control boxes are clamp(84px, 10vw, 124px) in CSS. Mirror
-  // that here so the margin we reserve always matches the real control size instead
-  // of a magic number that silently stops being true when the controls change.
-  const ctrl = Math.max(84, Math.min(window.innerWidth * 0.10, 124));
-  // Only the GLYPH is visible — it fills ~62-65% of the box, centred — so roughly 18%
-  // of transparent padding on each edge may sit over the frame harmlessly. We only
-  // have to clear the glyph.
-  const glyph = ctrl * 0.82;
-  // .book-frame outsets the page area by 16px top/bottom and 42px left/right, so the
-  // visible content frame is bigger than .flip-scale — reserve for that too.
-  const FRAME_Y = 16, FRAME_X = 42;
-  const reserveY = glyph + FRAME_Y;                  // Home above, Back/Next below
-  const availH = window.innerHeight - reserveY * 2;
-  const availW = window.innerWidth * 0.88 - FRAME_X * 2;
-  const s = Math.min(availW / 1280, availH / 720);
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const nav = navBtnPx();
+  const gap = nav * 0.35;                            // --nav-gap
+  // The band the controls own. Reserved on BOTH the top and the bottom so the book
+  // stays vertically CENTRED (only the bottom band is occupied now that Home is gone;
+  // reserving symmetrically is what keeps the centring, at the cost of a little book
+  // size on very short viewports).
+  const band = NAV_EDGE + nav + gap;
+
+  // Solve for the scale against the book's VISIBLE box (page area + frame outset).
+  // Horizontally the binding half is the wider one — the 42px right outset.
+  const availH = vh - band * 2;
+  const availW = vw - vw * SIDE_MARGIN * 2;
+  // Floor the scale: below ~172px of viewport height the reserved band exceeds the
+  // whole screen and the raw solve goes NEGATIVE, which would mirror the book rather
+  // than shrink it. Nothing is usable at that size, but it must not invert.
+  const s = Math.max(0.05, Math.min(
+    availW / (2 * Math.max(640 + FRAME_L, 640 + FRAME_R)),
+    availH / (720 + FRAME_T + FRAME_B)
+  ));
   flipScaleEl.style.setProperty("--book-scale", s.toFixed(4));
-  // keep the page-turn hint glued to the forward arrow when the viewport changes
+
+  // ---- publish the book's real rendered geometry for the controls to anchor to ----
+  const cx = vw / 2, cy = vh / 2;                    // .flip-scale is centred on both axes
+  const left   = cx - (640 + FRAME_L) * s;
+  const right  = cx + (640 + FRAME_R) * s;
+  const top    = cy - (360 + FRAME_T) * s;
+  const bottom = cy + (360 + FRAME_B) * s;
+  const root = document.documentElement.style;
+  const px = function (n) { return n.toFixed(2) + "px"; };
+  root.setProperty("--book-w", px(right - left));
+  root.setProperty("--book-h", px(bottom - top));
+  root.setProperty("--book-left",   px(left));       // absolute viewport-space edges
+  root.setProperty("--book-right",  px(right));
+  root.setProperty("--book-top",    px(top));
+  root.setProperty("--book-bottom", px(bottom));
+  root.setProperty("--gutter-l", px(left));          // clear room outside each edge
+  root.setProperty("--gutter-r", px(vw - right));
+  root.setProperty("--gutter-t", px(top));
+  root.setProperty("--gutter-b", px(vh - bottom));
+  // Resolved --nav-btn, so a test can assert the JS mirror and the CSS token agree.
+  root.setProperty("--nav-btn-px", px(nav));
+
+  // Re-glue the page-turn hint. It hangs off the BOOK's right edge (not the forward
+  // arrow, despite what this comment used to say), and positionFlipHint reads the
+  // book's live rect — so it needed no change for the new anchoring, only this call.
   if (flipHint && flipHint.classList.contains("show")) positionFlipHint();
 }
 
@@ -903,21 +958,14 @@ function updateNavControls() {
   // On the cover / start screen NOTHING is shown, whatever the gate flags happen to say.
   // This is the single invariant that keeps Home, Replay and a fresh load consistent.
   if (!opened) {
-    if (homeBtn) homeBtn.classList.remove("show");
     [cornerPrev, cornerNext].forEach(function (b) {
       if (!b) return;
       b.classList.remove("is-visible");
       b.setAttribute("aria-hidden", "true");
       b.disabled = true;
     });
-    prevBtn.disabled = true;
-    nextBtn.disabled = true;
     return;
   }
-
-  // HOME appears as soon as the cover OPENS — hidden on the cover and on THE END
-  // page (which has its own Replay). Stays available while a page video plays.
-  if (homeBtn) homeBtn.classList.toggle("show", opened && !onEnd);
 
   // BACK is completely ABSENT on the first story page — not disabled, not faded.
   if (cornerPrev) {
@@ -941,10 +989,6 @@ function updateNavControls() {
     }
     cornerNext.setAttribute("aria-disabled", String(!!cornerNext.disabled));
   }
-
-  // Legacy hidden nav elements (kept only so older refs stay valid).
-  prevBtn.disabled = flipped <= 0;
-  nextBtn.disabled = onEnd || !canNavigateForward();
 }
 /* Kept as an alias: several call sites read as "the page changed, refresh chrome". */
 function updateProgress() { updateNavControls(); }
@@ -1041,15 +1085,14 @@ function resetToStart() {
   bookFloat.classList.remove("rest");          // resume the idle bob
   tapCatcher.style.pointerEvents = "auto";     // Play is tappable again
   hideFlipHint(); clearTimeout(idleHintTimer); clearTimeout(nudgeHideTimer);
-  if (homeBtn) homeBtn.classList.remove("show");
   try { bgMusic.pause(); bgMusic.currentTime = 0; } catch (_) {}   // stop music; restarts on Play
   updateProgress();                            // hides the progress read-out (not opened)
 }
 
 /* ---- CLOSE THE BOOK: the cover swings SHUT — the exact REVERSE of the opening
-   hinge (cover −180 → 0) — and the book lands on the front cover. Shared by HOME
-   (while reading) and REPLAY (from THE END page). `afterReset` runs once we're
-   back on the cover. ------------------------------------------------------ */
+   hinge (cover −180 → 0) — and the book lands on the front cover. Reached ONLY by
+   REPLAY on THE END page now that the Home button is gone. `afterReset` runs once
+   we're back on the cover. ------------------------------------------------- */
 function closeBookToCover(afterReset) {
   ready = false;                               // block flips during the close
   teardownLbd();                               // overlay + game audio go NOW, not in 2s
@@ -1057,7 +1100,6 @@ function closeBookToCover(afterReset) {
   clearTimeout(_homeTimer);
   hideFlipHint(); clearTimeout(idleHintTimer); clearTimeout(nudgeHideTimer);
   if (cornerNext) cornerNext.classList.remove("blink", "blink1");
-  if (homeBtn) homeBtn.classList.remove("show");
   var v = currentVideo(); if (v) { try { v.pause(); } catch (_) {} }
   // pages back UNDER the cover, so the closing cover sweeps over them
   flipbookEl.style.zIndex = "";
@@ -1085,14 +1127,10 @@ function replayBook() {
   closeBookToCover();
 }
 
-/* ---- HOME: close the book (reverse of the opening swing) and land on the front
-   cover. Only available while reading. ------------------------------------ */
-function goHome() {
-  if (!opened || animating) return;
-  teardownLbd();              // exit fullscreen, kill the game, clear stale classes
-  if (!ready) { clearTimeout(_openTimer); resetToStart(); return; }  // tapped mid-open → snap back to the cover
-  closeBookToCover();
-}
+/* (goHome() was REMOVED with the Home button — it had exactly one caller, that
+   button's click handler. Replay still reaches closeBookToCover(); its mid-open
+   `!ready` shortcut is unreachable from THE END page, which only exists once the
+   cover has finished opening.) */
 
 /* ==========================================================================
    INPUT  —  tap PLAY to OPEN the cover; once open, drag + corner arrows +
@@ -1120,14 +1158,12 @@ if (tapCatcher) tapCatcher.addEventListener("mousemove", function (e) {
 // The play button itself (also covers keyboard: Enter/Space on the focused button).
 hint.addEventListener("click", function (e) { e.stopPropagation(); if (!opened) openBook(); });
 
-prevBtn.addEventListener("click", function (e) { e.stopPropagation(); goPrev(); });
-nextBtn.addEventListener("click", function (e) { e.stopPropagation(); goNext(); });
-
-// Bottom-corner flip arrows (outside the book): back = left, forward = right.
+// Bottom-corner flip arrows (outside the book): back = left, forward = right. These
+// are the ONLY prev/next controls; the keyboard handler below calls goPrev/goNext
+// directly, so it was never wired to the removed #prev/#next pair.
 cornerPrev.addEventListener("click", function (e) { e.stopPropagation(); goPrev(); this.blur(); });
 cornerNext.addEventListener("click", function (e) { e.stopPropagation(); goNext(); this.blur(); });
 if (replayBtn) replayBtn.addEventListener("click", function (e) { e.stopPropagation(); replayBook(); this.blur(); });
-if (homeBtn) homeBtn.addEventListener("click", function (e) { e.stopPropagation(); goHome(); this.blur(); });
 
 // Page interaction — DRAG TO TURN: grab the page and it follows your cursor,
 // rotating about the spine, then SNAPS to the nearest state when you let go.

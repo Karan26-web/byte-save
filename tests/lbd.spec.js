@@ -189,7 +189,7 @@ test("tapping the real Play button sends lbd-start → fullscreen, chrome hidden
   expect(geo.h).toBeCloseTo(geo.vh, 0);
 
   // ALL flipbook chrome is removed from the layout.
-  for (const sel of ["#cornerPrev", "#cornerNext", "#homeBtn"]) {
+  for (const sel of ["#cornerPrev", "#cornerNext"]) {
     const d = await page.locator(sel).evaluate((e) => getComputedStyle(e).display);
     expect(d, sel + " must be display:none in fullscreen").toBe("none");
   }
@@ -265,7 +265,6 @@ test("LBD 1 is playable, and completion waits for the closing narration before a
   expect(await page.evaluate(() => document.body.classList.contains("lbd-fullscreen"))).toBe(false);
 
   // Chrome is back for the new page.
-  await expect(page.locator("#homeBtn")).toBeVisible();
   await expect(page.locator("#cornerPrev")).toBeVisible();
   // The new page is a video page, so its gate re-armed.
   expect(s.hasVideo).toBe(true);
@@ -334,7 +333,12 @@ test("leaving the game page BEFORE starting kills it and re-warms", async ({ pag
   expect(await audioActivity(frame), "the re-warmed game must be silent").toEqual([]);
 });
 
-test("HOME from a live fullscreen game clears the overlay, fullscreen and all audio", async ({ page }) => {
+/* Was "HOME from a live fullscreen game clears the overlay, fullscreen and all audio".
+   The Home button is gone, so that bail-out route no longer exists: a live fullscreen
+   game can only be left by COMPLETING it. This locks down both halves of the new
+   behaviour — nothing can escape a running game, and completing it still tears the
+   overlay, the fullscreen state and all game audio down cleanly. */
+test("a live fullscreen game is inescapable, and completing it tears everything down", async ({ page }) => {
   await H.openBook(page);
   await H.gotoPage(page, LBD1_PAGE);
   const frame = await H.gameFrame(page);
@@ -342,12 +346,24 @@ test("HOME from a live fullscreen game clears the overlay, fullscreen and all au
   await page.waitForFunction(() => window.Flipbook.gateState().lbdFullscreen, null, { timeout: 10000 });
   await page.waitForTimeout(1500);
 
-  // Home is display:none in fullscreen (correctly), so use the same entry point the
-  // button uses — this is the "Home activated from the LBD page" route.
-  await page.evaluate(() => document.getElementById("homeBtn").click());
+  // No nav control and no key may turn a story page out from under a running game.
+  for (const sel of ["#cornerPrev", "#cornerNext"]) {
+    const d = await page.locator(sel).evaluate((e) => getComputedStyle(e).display);
+    expect(d, sel + " must be removed from the layout in fullscreen").toBe("none");
+  }
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(300);
+  let s = await H.state(page);
+  expect(s.page, "the keyboard must not move the story under a live game").toBe(LBD1_PAGE);
+  expect(s.lbdFullscreen, "the game must still own the screen").toBe(true);
+
+  // Completing it is the ONE way out — the same message the real game posts.
+  await frame.evaluate(() => parent.postMessage({ source: "lbd", type: "lbd-complete" }, "*"));
+  await page.waitForFunction(() => !window.Flipbook.gateState().lbdFullscreen, null, { timeout: 10000 });
   await page.waitForTimeout(600);
 
-  const s = await H.state(page);
+  s = await H.state(page);
   expect(s.lbdFullscreen, "fullscreen must be dropped").toBe(false);
   expect(s.overlayVisible, "overlay must be hidden").toBe(false);
   expect(await page.evaluate(() => document.body.classList.contains("lbd-fullscreen")),
@@ -361,10 +377,7 @@ test("HOME from a live fullscreen game clears the overlay, fullscreen and all au
     const out = []; d.querySelectorAll("audio,video").forEach((el) => { if (!el.paused) out.push(el.src); });
     return out;
   });
-  expect(stillPlaying, "Home must stop all game audio").toEqual([]);
-
-  // We end up back at the cover, ready to read again.
-  await page.waitForFunction(() => !document.body.classList.contains("is-open"), null, { timeout: 10000 });
+  expect(stillPlaying, "completion must stop all game audio").toEqual([]);
 });
 
 test("REPLAY from THE END clears the overlay and leaves no game running", async ({ page }) => {
@@ -383,10 +396,15 @@ test("REPLAY from THE END clears the overlay and leaves no game running", async 
 
 test("the hidden iframe never steals focus from the parent", async ({ page }) => {
   await H.openBook(page);
+  // Home used to be the focus target here; with it gone, the forward arrow is the only
+  // control on page 0 — and it is display:none until the first page's gate opens, so
+  // release the gate first (a display:none / disabled button cannot take focus).
+  await H.playVideoToEnd(page);
+  await expect(page.locator("#cornerNext")).toBeEnabled();
   // Focus something in the parent and confirm the warming iframe does not take it.
-  await page.evaluate(() => document.getElementById("homeBtn").focus());
+  await page.evaluate(() => document.getElementById("cornerNext").focus());
   await page.waitForTimeout(2500);
   const activeIsParent = await page.evaluate(() =>
-    document.activeElement && document.activeElement.id === "homeBtn");
+    document.activeElement && document.activeElement.id === "cornerNext");
   expect(activeIsParent, "the parent must keep focus while the game warms hidden").toBe(true);
 });

@@ -27,6 +27,39 @@
     /* The book's physical thickness (depth of the page block) */
     --thick: clamp(22px, 3.4vw, 48px);
 
+    /* -- NAV CONTROLS: ONE responsive size scale, no per-button magic numbers -----
+       Every nav control is width/height: var(--nav-btn). Driven by the SMALLER
+       viewport dimension (vmin, never vw) so a 4:3 tablet doesn't get an oversized
+       button, with three caps that each remove a way the layout could break:
+         8vmin  — the size scale itself
+         22dvh  — a SHORT viewport can't be eaten by the button (dvh, not vh, so a
+                  collapsing mobile URL bar never shifts it; vh fallback below)
+         30vw   — makes it structurally impossible for the two bottom-corner arrows
+                  to meet in the middle (2x30vw + gap < 100vw at every width)
+         56px floor / 112px cap — the floor is well above the 44x44 CSS px minimum
+                  touch target, so the target rule holds at every size. */
+    --nav-btn: clamp(56px, min(8vmin, 22vh, 30vw), 112px);
+    /* Structural minimum clearance between a control and ANYTHING else (the book, or
+       another control). fitScale() reserves exactly this much, so it is guaranteed. */
+    --nav-gap: calc(var(--nav-btn) * 0.35);
+    /* POSITIVE edge insets only — never a negative offset. env() keeps notches and
+       mobile browser chrome from clipping a control (needs viewport-fit=cover, which
+       index.html's viewport meta already sets). One x token for both sides so a
+       one-sided notch still leaves the arrow pair visually balanced. */
+    --nav-edge-x: max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    --nav-edge-y: max(10px, env(safe-area-inset-bottom, 0px));
+
+    /* Book geometry, published every frame by fitScale() in script.js: the rendered
+       size and the four viewport-space edges of the book's TRUE visible box (page
+       area + the .book-frame hardcover outset), plus the clear gutter outside each
+       edge. The controls position against THESE, not the viewport — the two used to
+       be independent coordinate systems, which is what let the buttons drift onto
+       the book on every viewport that isn't 16:9. Values here are only the one-frame
+       fallback before the first fitScale() call. */
+    --book-w: 0px; --book-h: 0px;
+    --book-left: 0px; --book-right: 0px; --book-top: 0px; --book-bottom: 76%;
+    --gutter-l: 0px; --gutter-r: 0px; --gutter-t: 0px; --gutter-b: 0px;
+
     /* -- Animation timings (edit these to taste) ------------------------------
        Page turns use a smooth in/out curve (no overshoot so paper never clips
        past 180°). The COVER open uses a springy "poppy" curve with overshoot. */
@@ -34,6 +67,14 @@
     --flip-ease:  cubic-bezier(0.65, 0.00, 0.35, 1);      /* pronounced ease-in + ease-out */
     --cover-ms:   1000ms;                                 /* cover-open duration */
     --cover-ease: cubic-bezier(0.34, 1.56, 0.64, 1);      /* springy overshoot   */
+  }
+
+  /* dvh upgrade for --nav-btn. This has to be @supports rather than the usual
+     two-declaration fallback: a custom property accepts ANY token sequence, so an
+     unsupported `dvh` would NOT be dropped at parse time — it would poison the
+     property at use time and the fallback would never kick in. */
+  @supports (height: 100dvh) {
+    :root { --nav-btn: clamp(56px, min(8vmin, 22dvh, 30vw), 112px); }
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -145,24 +186,36 @@
   }
   body.is-open .book-frame { opacity: 1; }
 
-  /* Flip arrows OUTSIDE the book, fixed at the viewport's bottom corners
-     (bottom-left = back, bottom-right = forward). position:fixed so they escape
-     the scaled/transformed book layer and never cover the pages or their
-     corners (which keeps turn.js's hover page-curl working on every corner). */
   /* Bare arrow icons — NO circle: no background fill, no box-shadow, no border,
-     no rounded pill. Only the arrow glyph shows, same position/size, clickable. */
-  /* Flip arrows OUTSIDE the book, fixed at the viewport's bottom corners. */
-  /* ---- BACK / NEXT ---------------------------------------------------------
-     Fixed at the viewport's LOWER CORNERS, outside the content artwork/frame, so
-     they never cover a page or its turnable corners. The negative `bottom` tucks
-     the glyph's transparent padding off-screen so the arrow reads as sitting in the
-     bottom margin. JS owns .is-visible (shown only after the experience starts) and
-     .is-hidden (absent entirely — used for Back on the first story page). */
+     no rounded pill. Only the arrow glyph shows, same position/size, clickable.
+     (Two stale copies of a "fixed at the viewport's bottom corners" note used to sit
+     here; they described the anchoring this rule no longer uses.) */
+  /* ---- BACK / NEXT — the ONLY prev/next controls ----------------------------
+     Anchored to the BOOK, not the viewport. fitScale() publishes the book's real
+     rendered bottom edge as --book-bottom and reserves --nav-edge-y + --nav-btn +
+     --nav-gap of room below it, so `--book-bottom + --nav-gap` always lands the
+     arrow in a guaranteed-clear gutter OUTSIDE the book's box — at any aspect ratio,
+     which the old vh-clamped viewport anchoring could not do. Keeping them off the
+     book is also what keeps turn.js's corner page-curl hover alive on every corner.
+     JS owns .is-visible (shown only after the experience starts) and .is-hidden
+     (absent entirely — used for Back on the first story page). */
   .corner-arrow {
     position: fixed;
-    width: clamp(84px, 10vw, 124px);
-    height: clamp(84px, 10vw, 124px);
-    bottom: clamp(-10px, -0.5vh, -2px);
+    /* ONE size token for every control — no per-button hard-coded px anywhere. */
+    width: var(--nav-btn);
+    height: var(--nav-btn);
+    /* First term = clear the book by --nav-gap. Second term = stay fully inside the
+       viewport. fitScale()'s reserve makes the two equal when height is the limiting
+       axis, so neither can be violated; when WIDTH is the limiting axis the first
+       term wins and the gutter is simply larger. No negative offsets anywhere.
+       (On a notched device where env(safe-area-inset-bottom) exceeds the 10px floor
+       the second term wins — keeping the button reachable, which matters more than a
+       hairline of overlap; insets up to 10px + --nav-gap cost nothing at all.) */
+    top: min(calc(var(--book-bottom) + var(--nav-gap)),
+             calc(100vh  - var(--nav-btn) - var(--nav-edge-y)));   /* vh fallback */
+    top: min(calc(var(--book-bottom) + var(--nav-gap)),
+             calc(100dvh - var(--nav-btn) - var(--nav-edge-y)));   /* mobile URL bar */
+    bottom: auto;
     z-index: 700;
     border: none; background: none; padding: 0;
     color: var(--accent-2);                                    /* moon-gold: visible on the night bg */
@@ -177,8 +230,10 @@
   .corner-arrow.is-visible { display: flex; opacity: 0.96; }
   /* Absent, not merely faded — Back on the first story page. */
   .corner-arrow.is-hidden  { display: none !important; }
-  .corner-arrow.back { left:  clamp(12px, 2.5vw, 34px); }
-  .corner-arrow.fwd  { right: clamp(12px, 2.5vw, 34px); }
+  /* Opposite ends of the bottom gutter. With Home gone these two are the whole nav
+     surface, and the 30vw cap in --nav-btn means they can never reach each other. */
+  .corner-arrow.back { left:  var(--nav-edge-x); }
+  .corner-arrow.fwd  { right: var(--nav-edge-x); }
   /* The glyph fills ~62% of the button box. The MIRROR for Back lives on the nested
      <svg>, NOT the button, so the button's hover/active scale composes with it
      instead of overwriting it (a scale on the same element would un-mirror it). */
@@ -193,33 +248,10 @@
   .corner-arrow:focus-visible { outline: none; box-shadow: none; }
   .corner-arrow[disabled] { opacity: 0.22; pointer-events: none; }
 
-  /* ---- HOME ---------------------------------------------------------------
-     Same outer box as the arrows so all three read at the same weight, sitting
-     fully in the TOP-RIGHT margin above the content frame. JS toggles .show (only
-     while reading; hidden on the cover and on THE END page, which has its Replay). */
-  .home-btn {
-    position: fixed;
-    width: clamp(84px, 10vw, 124px);
-    height: clamp(84px, 10vw, 124px);
-    top:   clamp(-12px, -0.9vh, -4px);
-    right: clamp(8px, 1.6vw, 22px);
-    z-index: 720;
-    border: none; background: none; padding: 0;
-    color: var(--accent-2);
-    filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55));
-    display: none; align-items: center; justify-content: center;
-    cursor: pointer; opacity: 0;
-    transition: opacity 400ms ease, transform 150ms ease;
-    -webkit-user-select: none; user-select: none;
-    -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .home-btn.show   { display: flex; opacity: 0.96; }
-  .home-btn:hover  { transform: scale(1.12); }
-  .home-btn:active { transform: scale(0.9); }
-  .home-btn:focus, .home-btn:focus-visible { outline: none; box-shadow: none; }
-  .home-btn[disabled] { opacity: 0.22; pointer-events: none; }
-  .home-btn svg { width: 65%; height: 65%; }     /* glyph fills ~65% of the box */
+  /* (The whole .home-btn block was REMOVED with the button: it was the one control
+     sharing the RIGHT edge with .corner-arrow.fwd, and its top: clamp(-12px, -0.9vh,
+     -4px) hung it off the top of every viewport we measured. Nothing replaces it —
+     Replay on THE END page is now the only route back to the cover.) */
 
   /* While the viewport is actively resizing / the resolution is changing, freeze
      the page-turn transitions so the book can't appear to auto-flip (JS adds
@@ -317,8 +349,10 @@
   .replay-btn:focus, .replay-btn:focus-visible { outline: none; }
   .replay-btn svg { width: clamp(26px, 2.6vw, 34px); height: clamp(26px, 2.6vw, 34px); fill: #3a2408; }
 
-  /* The old fixed side-arrows are replaced by the corner arrows above. */
-  .arrow { display: none !important; }
+  /* (The old fixed side-arrows were REMOVED, not just hidden: this rule used to be
+     `.arrow { display: none !important }` overriding a `body.is-open .arrow
+     { display: flex }` further down, i.e. a whole second prev/next pair kept alive
+     only by an !important. The markup and the dead #prev/#next JS refs are gone.) */
 
   /* Soft drop shadow on the "floor" beneath the book — grows as it opens */
   .floor-shadow {
@@ -904,7 +938,6 @@
      the layout — not just faded — so nothing can be tapped through and nothing
      overlaps the game. */
   body.lbd-fullscreen .corner-arrow,
-  body.lbd-fullscreen .home-btn,
   body.lbd-fullscreen .flip-hint { display: none !important; }
   /* Background page scrolling is impossible while the game owns the viewport. */
   body.lbd-fullscreen { overflow: hidden; overscroll-behavior: none; touch-action: none; }
@@ -1013,21 +1046,9 @@
   /* ==========================================================================
      CONTROLS  —  arrows, progress read-out, mute toggle
      ========================================================================== */
-  .arrow {
-    position: fixed; top: 50%; transform: translateY(-50%);
-    width: clamp(42px, 6vw, 60px); height: clamp(42px, 6vw, 60px);
-    border: none; border-radius: 50%; background: rgba(255,255,255,0.85);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.18);
-    font-size: clamp(20px, 3vw, 30px); color: var(--cover-2);
-    cursor: pointer; z-index: 700; display: none;
-    align-items: center; justify-content: center;
-    transition: transform 140ms ease, background 140ms ease, opacity 200ms ease;
-  }
-  .arrow:hover  { background: #fff; transform: translateY(-50%) scale(1.08); }
-  .arrow:active { transform: translateY(-50%) scale(0.94); }
-  .arrow:disabled { opacity: 0.3; cursor: default; }
-  .arrow.prev { left: clamp(6px, 3vw, 34px); } .arrow.next { right: clamp(6px, 3vw, 34px); }
-  body.is-open .arrow { display: flex; }
+  /* (Removed: the .arrow circle pair — the duplicate set of prev/next controls. The
+     .corner-arrow pair up top is now the single set. See the note where the old
+     `.arrow { display: none !important }` override used to live.) */
 
   /* (Removed: .toolbar / .progress — the bottom toolbar and page counter were taken out
      of index.html, so both rules and the `body.lbd-fullscreen .toolbar` guard were dead.) */

@@ -122,8 +122,7 @@ test("a BROKEN video source still releases the gate via the error path", async (
   await H.clickNext(page);
   expect((await H.state(page)).page).toBe(1);
 
-  // Back and Home stayed usable throughout.
-  await expect(page.locator("#homeBtn")).toBeVisible();
+  // Back stayed usable throughout.
   await expect(page.locator("#cornerPrev")).toBeEnabled();
   console.log("broken-video console errors (resource 404/abort is expected):", w.errors.length);
 });

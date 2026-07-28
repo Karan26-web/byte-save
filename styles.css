@@ -34,8 +34,10 @@
          8vmin  — the size scale itself
          22dvh  — a SHORT viewport can't be eaten by the button (dvh, not vh, so a
                   collapsing mobile URL bar never shifts it; vh fallback below)
-         30vw   — makes it structurally impossible for the two bottom-corner arrows
-                  to meet in the middle (2x30vw + gap < 100vw at every width)
+         30vw   — keeps the two bottom-corner arrows well clear of each other
+                  (2x30vw + gap < 100vw at every width). Now that they anchor to the
+                  BOOK's corners rather than the screen edges, the never-cross-centre
+                  cap in .corner-arrow.back/.fwd is what makes it structural.
          56px floor / 112px cap — the floor is well above the 44x44 CSS px minimum
                   touch target, so the target rule holds at every size. */
     --nav-btn: clamp(56px, min(8vmin, 22vh, 30vw), 112px);
@@ -191,12 +193,15 @@
      (Two stale copies of a "fixed at the viewport's bottom corners" note used to sit
      here; they described the anchoring this rule no longer uses.) */
   /* ---- BACK / NEXT — the ONLY prev/next controls ----------------------------
-     Anchored to the BOOK, not the viewport. fitScale() publishes the book's real
+     Anchored to the BOOK on BOTH axes, not the viewport, so each arrow sits just below
+     the book's own bottom corner. Vertically: fitScale() publishes the book's real
      rendered bottom edge as --book-bottom and reserves --nav-edge-y + --nav-btn +
      --nav-gap of room below it, so `--book-bottom + --nav-gap` always lands the
      arrow in a guaranteed-clear gutter OUTSIDE the book's box — at any aspect ratio,
-     which the old vh-clamped viewport anchoring could not do. Keeping them off the
-     book is also what keeps turn.js's corner page-curl hover alive on every corner.
+     which the old vh-clamped viewport anchoring could not do. Horizontally: the
+     --gutter-l / --gutter-r insets line each arrow's outer edge up with the book's
+     matching edge (see .corner-arrow.back / .fwd). Keeping them off the book is also
+     what keeps turn.js's corner page-curl hover alive on every corner.
      JS owns .is-visible (shown only after the experience starts) and .is-hidden
      (absent entirely — used for Back on the first story page). */
   .corner-arrow {
@@ -230,10 +235,23 @@
   .corner-arrow.is-visible { display: flex; opacity: 0.96; }
   /* Absent, not merely faded — Back on the first story page. */
   .corner-arrow.is-hidden  { display: none !important; }
-  /* Opposite ends of the bottom gutter. With Home gone these two are the whole nav
-     surface, and the 30vw cap in --nav-btn means they can never reach each other. */
-  .corner-arrow.back { left:  var(--nav-edge-x); }
-  .corner-arrow.fwd  { right: var(--nav-edge-x); }
+  /* Under the BOOK'S BOTTOM CORNERS — not out at the screen edges. fitScale publishes
+     the clear room outside each edge of the book's visible box (--gutter-l / --gutter-r,
+     which already account for .book-frame's asymmetric outset), so using that as the
+     inset lands each arrow's outer edge flush with the book's own edge: the arrow sits
+     directly below the corner it turns. On a wide viewport that is a long way in from
+     the screen edge, which is the whole point — the button used to strand itself out in
+     the empty margin, far from the book it belongs to.
+       • floor  var(--nav-edge-x)          → never closer to the screen edge than the
+                                             safe-area inset (notches, rounded corners);
+       • cap    calc(50% - var(--nav-btn)) → neither arrow can ever cross the centre
+                                             line, so the pair cannot collide on an
+                                             absurdly short viewport where the book has
+                                             been scaled down to almost nothing.
+     clamp() returns its MIN when MIN > MAX, so that degenerate case falls back to the
+     old screen-edge anchoring rather than doing something strange. */
+  .corner-arrow.back { left:  clamp(var(--nav-edge-x), var(--gutter-l), calc(50% - var(--nav-btn))); }
+  .corner-arrow.fwd  { right: clamp(var(--nav-edge-x), var(--gutter-r), calc(50% - var(--nav-btn))); }
   /* The glyph fills ~62% of the button box. The MIRROR for Back lives on the nested
      <svg>, NOT the button, so the button's hover/active scale composes with it
      instead of overwriting it (a scale on the same element would un-mirror it). */

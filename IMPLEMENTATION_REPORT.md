@@ -358,6 +358,18 @@ scale composes with the mirror instead of overwriting it — asserted in both st
 > Measured result: all three glyphs clear the frame, and Home sits fully above **and**
 > right of its corner.
 
+**Both arrows anchor to the BOOK on both axes** — the current rule, superseding the
+viewport-edge offsets in the table above. Vertically, `--book-bottom + --nav-gap` drops them
+into the reserved gutter below the book. Horizontally, `--gutter-l` / `--gutter-r` (the clear
+room outside the book's visible box, published by `fitScale()`) line each arrow's outer edge
+up with the book's matching edge, so each one sits directly **below the book's bottom corner**
+instead of stranded out in the empty screen margin — which is what viewport-edge anchoring did
+on any viewport wider than the book. `--nav-edge-x` is the floor (safe-area insets), and
+`calc(50% - var(--nav-btn))` is the cap, so the pair can never cross the centre line and
+collide. `nav-layout.spec.js` asserts the alignment across all nine acceptance viewports plus
+both browser-zoom levels; measured at 1366×768 the arrows land at x 175–237 and 1149–1211
+against a book spanning 175–1211.
+
 **First story page**, per the appended rules: Back is `display:none !important` (absent,
 not faded — there is no previous page, the cover is not one). Next is absent until
 `firstPageVideoCompleted && firstPageInteractionCompleted`; `updateNavControls()` toggles
@@ -448,6 +460,7 @@ wait; passes at both viewports.
 |---|---|
 | `loading.spec.js` | Stage A loader, monotonic byte-aware progress, pop-in, bypass attempts, failed-fetch resilience, small-before-large ordering, Stage B timing |
 | `nav.spec.js` | control geometry + glyph/frame overlap, cover state, first-page Back absence, last-page state, mirroring under hover/active, disabled styling, accessibility, return-to-cover |
+| `nav-layout.spec.js` | the geometry matrix: nine acceptance viewports + two zoom levels — no clipping, no book overlap, no arrow-on-arrow overlap, the `0.35 x --nav-btn` gutter, and book-corner anchoring on both axes; plus a live resize and the page-turn hint's book-edge glue |
 | `gating.spec.js` | every video page locked; **all five** forward routes blocked; broken-video `error` path; stalled-video watchdog; cleared pages stay unlocked on revisit (both arrows live) while un-cleared pages stay gated; the game page's absent Next + all five routes blocked until completion; the one-shot glow pulse; Replay re-gating; the first-page dual gate in all four combinations |
 | `lbd.spec.js` | hidden silent warm-up, dev-tool absence, idle asset warming, page-frame reveal, `lbd-start`→fullscreen, no reload during expansion, playability, narration-gated completion, auto-advance, teardown/re-warm, leave-before-start, Home, Replay, LBD 2 full playthrough, focus |
 | `crawl.spec.js` | all 7 pages: JS errors, response codes, image `naturalWidth`/`complete`, posters, video error state, gate release, nav state, screenshots + blank/uniform-colour detection; GPU windowing; ghosting |

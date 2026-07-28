@@ -30,6 +30,22 @@ const VIEWPORTS = [
 const CONTROLS = ["#cornerPrev", "#cornerNext"];
 
 const MIN_TOUCH = 44;          // WCAG 2.5.5 minimum touch target, in CSS px
+/* The 12px floor in --nav-edge-x. env() safe-area insets are 0 in a headless window,
+   so the floor is the whole token here. */
+const NAV_EDGE_X = 12;
+
+/* Mirror of CSS clamp(): returns MIN when MIN > MAX, exactly as the spec requires. */
+const cssClamp = (min, val, max) => (max < min ? min : Math.min(Math.max(val, min), max));
+
+/* Where the CSS should put each arrow: outer edge flush with the book's matching edge,
+   floored at the safe-area inset and capped so neither can cross the centre line. */
+function expectedInsets(m) {
+  const cap = m.vw / 2 - m.navBtn;
+  return {
+    "#cornerPrev": cssClamp(NAV_EDGE_X, m.book.l, cap),          // distance from the LEFT
+    "#cornerNext": cssClamp(NAV_EDGE_X, m.vw - m.book.r, cap),   // distance from the RIGHT
+  };
+}
 
 /* Read every box we care about in one round trip, in the page's own coordinates. */
 function measure(page, controls) {
@@ -128,6 +144,24 @@ test.describe("nav layout matrix", () => {
           expect(c.t - m.book.b, `${c.sel} is closer than ${minGap.toFixed(1)}px to the book`)
             .toBeGreaterThanOrEqual(minGap - 1);
         }
+      }
+
+      // 8. BOOK-CORNER ANCHORING: each arrow sits directly below the book's own bottom
+      // corner — its outer edge flush with the book's matching edge — instead of being
+      // stranded out at the screen edge on a wide viewport.
+      if (m.navBtn) {
+        const want = expectedInsets(m);
+        const prev = m.controls.find((c) => c.sel === "#cornerPrev");
+        const next = m.controls.find((c) => c.sel === "#cornerNext");
+        console.log(`    anchoring: left inset ${prev.l.toFixed(1)} (want ${want["#cornerPrev"].toFixed(1)}), ` +
+                    `right inset ${(m.vw - next.r).toFixed(1)} (want ${want["#cornerNext"].toFixed(1)})`);
+        expect(prev.l, "Back must line up with the book's LEFT edge")
+          .toBeCloseTo(want["#cornerPrev"], 0);
+        expect(m.vw - next.r, "Next must line up with the book's RIGHT edge")
+          .toBeCloseTo(want["#cornerNext"], 0);
+        // ...which for these viewports means genuinely inside the screen margin.
+        expect(next.r, "Next must not sit past the book's right edge").toBeLessThanOrEqual(m.book.r + 0.5);
+        expect(prev.l, "Back must not sit past the book's left edge").toBeGreaterThanOrEqual(m.book.l - 0.5);
       }
     });
   }

@@ -88,7 +88,7 @@ test("Next moves exactly one page, and rapid double-taps cannot skip", async ({ 
   expect((await H.state(page)).page, "double/triple tap must advance exactly one page").toBe(1);
 });
 
-test("the gate is RE-ARMED when a video page is revisited from the next page", async ({ page }) => {
+test("a page already cleared stays UNLOCKED when revisited — no second sit-through", async ({ page }) => {
   await H.openBook(page);
   await H.playVideoToEnd(page);
   await H.clickNext(page);                   // page index 1
@@ -98,10 +98,52 @@ test("the gate is RE-ARMED when a video page is revisited from the next page", a
   const s = await H.state(page);
   expect(s.page).toBe(0);
   expect(s.armedFor).toBe(0);
-  expect(s.videoCompleted, "revisiting must re-lock, not inherit the old unlock").toBe(false);
-  expect(s.canForward).toBe(false);
-  // And on page 0 specifically, Next goes back to being ABSENT.
-  await expect(page.locator("#cornerNext")).toBeHidden();
+  expect(s.cleared, "page 0 was cleared, so it is remembered").toContain(0);
+  expect(s.videoCompleted, "a cleared page must not re-lock on revisit").toBe(true);
+  expect(s.canForward).toBe(true);
+  // Next is live again immediately — the learner is not made to re-watch the clip.
+  await expect(page.locator("#cornerNext")).toBeVisible();
+  await expect(page.locator("#cornerNext")).toBeEnabled();
+
+  // ...and forward really works, without touching the video at all.
+  await H.clickNext(page);
+  expect((await H.state(page)).page).toBe(1);
+});
+
+test("returning to a middle page shows BOTH arrows, live", async ({ page }) => {
+  await H.openBook(page);
+  await H.gotoPage(page, 2);                 // 0 → 1 → 2, each cleared honestly on the way
+  await H.playVideoToEnd(page);              // clear page 2 as well
+  await H.clickBack(page);                   // back to page 1 — visited and cleared before
+
+  const s = await H.state(page);
+  expect(s.page).toBe(1);
+  expect(s.canForward, "a revisited cleared page must allow forward at once").toBe(true);
+
+  for (const sel of ["#cornerPrev", "#cornerNext"]) {
+    await expect(page.locator(sel), sel + " must be visible on a revisited page").toBeVisible();
+    await expect(page.locator(sel), sel + " must be usable on a revisited page").toBeEnabled();
+  }
+
+  // Both directions work from here.
+  await H.clickBack(page);
+  expect((await H.state(page)).page).toBe(0);
+  await H.clickNext(page);
+  expect((await H.state(page)).page).toBe(1);
+});
+
+test("a NEW page is still gated after paging back through cleared ones", async ({ page }) => {
+  await H.openBook(page);
+  await H.gotoPage(page, 1);                 // page 0 cleared, now on the un-cleared page 1
+  await H.clickBack(page);                   // page 0 — unlocked (cleared)
+  await H.clickNext(page);                   // page 1 again — never cleared
+
+  const s = await H.state(page);
+  expect(s.page).toBe(1);
+  expect(s.cleared, "page 1 was never cleared").not.toContain(1);
+  expect(s.videoCompleted, "an un-cleared page must still wait for its video").toBe(false);
+  expect(s.canForward, "the sticky unlock must not leak to a new page").toBe(false);
+  await expect(page.locator("#cornerNext")).toBeDisabled();
 });
 
 test("a BROKEN video source still releases the gate via the error path", async ({ page }) => {
@@ -146,14 +188,120 @@ test("a STALLED video that never errors is released by the watchdog", async ({ p
   expect((await H.state(page)).page).toBe(1);
 });
 
-test("pages WITHOUT a video are never locked by the video gate", async ({ page }) => {
+test("pages WITHOUT a video are never locked by the VIDEO gate", async ({ page }) => {
   await H.openBook(page);
   await H.gotoPage(page, 3);                 // the LBD 1 game page — no page-owned video
   const s = await H.state(page);
   expect(s.page).toBe(3);
   expect(s.hasVideo).toBe(false);
   expect(s.videoCompleted, "a page with no video starts satisfied").toBe(true);
-  expect(s.canForward, "a page with no video must not be gated").toBe(true);
+  // It is still held by its OWN activity gate (the game) — see the game-gate tests
+  // below. Nothing here waits on a video that does not exist.
+  expect(s.hasInteraction).toBe(true);
+});
+
+/* ---------------- the GAME page gate (finish the game or stay put) ------------- */
+
+test("the game page HIDES Next and blocks every forward route until the game completes",
+  async ({ page }) => {
+    await H.openBook(page);
+    await H.gotoPage(page, 3);                 // the LBD 1 game page
+    const s = await H.state(page);
+    expect(s.page).toBe(3);
+    expect(s.hasInteraction, "a game page always owns a required activity").toBe(true);
+    expect(s.interactionCompleted).toBe(false);
+    expect(s.canForward, "the game has not been completed").toBe(false);
+
+    // ABSENT — not merely disabled: a dead arrow here reads as a way to skip the game.
+    expect(s.nextHiddenWhileLocked).toBe(true);
+    const display = await page.locator("#cornerNext").evaluate((e) => getComputedStyle(e).display);
+    expect(display, "Next must be display:none on an unfinished game page").toBe("none");
+    await expect(page.locator("#cornerNext")).toBeHidden();
+    // Back is still there — the learner may leave a game they don't want to play.
+    await expect(page.locator("#cornerPrev")).toBeVisible();
+
+    // No route gets through.
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(600);
+    expect((await H.state(page)).page, "keyboard bypassed the game gate").toBe(3);
+    await swipeForward(page);
+    expect((await H.state(page)).page, "swipe bypassed the game gate").toBe(3);
+    await clickCorner(page);
+    expect((await H.state(page)).page, "corner click bypassed the game gate").toBe(3);
+    await page.evaluate(() => window.Flipbook.goNext());
+    await page.waitForTimeout(600);
+    expect((await H.state(page)).page, "programmatic call bypassed the game gate").toBe(3);
+
+    // Completing the activity is what reveals it.
+    await page.evaluate(() => window.Flipbook.markInteractionComplete());
+    const after = await H.state(page);
+    expect(after.interactionCompleted).toBe(true);
+    expect(after.canForward).toBe(true);
+    await expect(page.locator("#cornerNext")).toBeVisible();
+    await expect(page.locator("#cornerNext")).toBeEnabled();
+  });
+
+test("a completed game page shows Next again when the learner pages back to it", async ({ page }) => {
+  await H.openBook(page);
+  await H.gotoPage(page, 4);                 // clears the game page on the way through
+  expect((await H.state(page)).page).toBe(4);
+
+  await H.clickBack(page);                   // back onto the game page
+  const s = await H.state(page);
+  expect(s.page).toBe(3);
+  expect(s.cleared, "the finished game page is remembered").toContain(3);
+  expect(s.canForward, "a finished game must not have to be replayed").toBe(true);
+  await expect(page.locator("#cornerNext")).toBeVisible();
+  await expect(page.locator("#cornerNext")).toBeEnabled();
+  await expect(page.locator("#cornerPrev")).toBeVisible();
+});
+
+/* ---------------- the Next arrow's one-shot glow pulse ------------------------- */
+
+test("Next plays ONE glow pulse when it becomes available, then rests", async ({ page }) => {
+  await H.openBook(page);
+  const next = page.locator("#cornerNext");
+
+  // Nothing is animating while the arrow is still locked away.
+  expect(await next.evaluate((e) => e.classList.contains("glow-pulse"))).toBe(false);
+
+  await H.playVideoToEnd(page);
+  // The cue is applied as the arrow becomes available...
+  await expect(next).toBeVisible();
+  expect(await next.evaluate((e) => e.classList.contains("glow-pulse")),
+    "the arrow should pulse as it appears").toBe(true);
+
+  // ...it is a real, finite animation, not a permanent state...
+  const anim = await next.evaluate((e) => {
+    const cs = getComputedStyle(e);
+    return { name: cs.animationName, iterations: cs.animationIterationCount, dur: cs.animationDuration };
+  });
+  expect(anim.name).toBe("nextGlowPulse");
+  expect(anim.iterations, "a brief pulse, not an endless one").toBe("3");
+
+  // ...and the arrow is back to its normal resting state shortly after.
+  await page.waitForFunction(
+    () => !document.getElementById("cornerNext").classList.contains("glow-pulse"),
+    null, { timeout: 6000 }
+  );
+  const rest = await next.evaluate((e) => getComputedStyle(e).animationName);
+  expect(rest, "no animation may be left running on the arrow").toBe("none");
+  await expect(next).toBeEnabled();
+});
+
+test("the glow pulse does NOT replay when a cleared page is revisited", async ({ page }) => {
+  await H.openBook(page);
+  await H.playVideoToEnd(page);
+  await page.waitForFunction(
+    () => !document.getElementById("cornerNext").classList.contains("glow-pulse"),
+    null, { timeout: 6000 }
+  );
+  await H.clickNext(page);
+  await H.clickBack(page);                   // back onto the cleared page 0
+
+  await expect(page.locator("#cornerNext")).toBeVisible();
+  expect(await page.locator("#cornerNext").evaluate((e) => e.classList.contains("glow-pulse")),
+    "the cue is for a NEWLY opened gate, not for every arrival").toBe(false);
 });
 
 /* ---------------- the FIRST-PAGE dual gate (video AND interaction) ------------- */
@@ -245,7 +393,7 @@ test("first page: an incorrect interaction attempt does not count as completion"
   expect((await H.state(page)).canForward).toBe(true);
 });
 
-test("first page: state resets correctly when the learner returns to it", async ({ page }) => {
+test("first page: both requirements stay satisfied when the learner returns to it", async ({ page }) => {
   await firstPageWithInteraction(page);
   await H.playVideoToEnd(page);
   await page.evaluate(() => window.Flipbook.markInteractionComplete());
@@ -255,7 +403,31 @@ test("first page: state resets correctly when the learner returns to it", async 
   await H.clickBack(page);
   const s = await H.state(page);
   expect(s.page).toBe(0);
-  expect(s.videoCompleted, "video gate must re-arm on return").toBe(false);
-  expect(s.interactionCompleted, "interaction gate must re-arm on return").toBe(false);
-  await expect(page.locator("#cornerNext"), "Next must not be stale-visible").toBeHidden();
+  expect(s.videoCompleted, "a cleared page keeps its video requirement satisfied").toBe(true);
+  expect(s.interactionCompleted, "...and its activity requirement too").toBe(true);
+  expect(s.canForward).toBe(true);
+  await expect(page.locator("#cornerNext"), "Next is live again on return").toBeVisible();
+  await expect(page.locator("#cornerNext")).toBeEnabled();
+});
+
+test("Replay from the cover re-gates every page again", async ({ page }) => {
+  await H.openBook(page);
+  await H.gotoPage(page, 6);                 // walk the whole book — every page cleared
+  expect((await H.state(page)).cleared.length).toBeGreaterThan(0);
+
+  await page.locator("#replayBtn").click(H.FORCE);
+  await page.waitForFunction(() => !document.body.classList.contains("is-open"), null, { timeout: 12000 });
+  await page.waitForTimeout(300);
+
+  const s = await H.state(page);
+  expect(s.opened).toBe(false);
+  expect(s.cleared, "a fresh read must not inherit the previous read's unlocks").toEqual([]);
+
+  // Opening again lands on a properly LOCKED page 0.
+  await page.locator("#hint").click(H.FORCE);
+  await page.waitForFunction(() => window.Flipbook.gateState().ready, null, { timeout: 20000 });
+  const s2 = await H.state(page);
+  expect(s2.page).toBe(0);
+  expect(s2.videoCompleted, "page 0 must be gated again on a fresh read").toBe(false);
+  await expect(page.locator("#cornerNext")).toBeHidden();
 });

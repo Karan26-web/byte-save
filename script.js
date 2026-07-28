@@ -36,6 +36,8 @@ console.log("%c✅ [The Story Night] loaded — 3D flipbook · full-bleed pages 
      • poster : (video only) that clip's frame-0 WebP, so the page paints instantly.
      • interactive : (optional) true when the page owns a required learner activity;
                 the forward gate then also waits for Flipbook.markInteractionComplete().
+                Every "lbd" page is treated as interactive whether or not the flag is
+                written here — finishing the game IS that page's activity.
      • delay  : (video only, optional) milliseconds to wait after landing on the
                 page before the video starts (e.g. delay: 3000 → starts after 3s).
                 Omit / 0 → the video starts instantly.
@@ -65,7 +67,9 @@ console.log("%c✅ [The Story Night] loaded — 3D flipbook · full-bleed pages 
 //
 // `interactive: true` marks a page that owns a required learner activity; the
 // forward gate then waits for BOTH the video and that activity (see the FIRST-PAGE
-// GATE section). Video pages with no activity only wait for the video.
+// GATE section). Video pages with no activity only wait for the video. The game
+// pages carry it because finishing the game is the ONLY way forward from them —
+// their Next arrow stays absent until the game reports completion.
 const pages = [
   { type: "video", src: "assets/1.webm", poster: "assets/posters/1.webp" },   // 1 — opening video
   { type: "video", src: "assets/2.webm", poster: "assets/posters/2.webp" },   // 2
@@ -78,10 +82,10 @@ const pages = [
   // poster = the game's own INTRO artwork (assets/start.webp), not the bare farm field —
   // so the page turn lands on exactly the image the warmed iframe then shows, and the
   // first game screen reads as printed on the page instead of swapping art on arrival.
-  { type: "lbd", src: "LBD%201/index.html", poster: "LBD%201/assets/start.webp" },
+  { type: "lbd", src: "LBD%201/index.html", poster: "LBD%201/assets/start.webp", interactive: true },
   { type: "video", src: "assets/4.webm", poster: "assets/posters/4.webp" },   // 5 — story page 4
   // 6 — EMBEDDED GAME 2 (immediately after story page 4): "Right & Left".
-  { type: "lbd", src: "LBD%202/Right-and-Left/index.html", poster: "LBD%202/Right-and-Left/Assets/UI/start-screen.webp" },
+  { type: "lbd", src: "LBD%202/Right-and-Left/index.html", poster: "LBD%202/Right-and-Left/Assets/UI/start-screen.webp", interactive: true },
   { type: "end" },                           // 7 — THE END page (cream) + Replay
 ];
 
@@ -135,9 +139,11 @@ function makeMedia(page) {
       try { if (media.ended) media.currentTime = 0; } catch (_) {}
       const p = media.play(); if (p && p.catch) p.catch(function () {});
     });
-    // When THIS page's video FULLY finishes, blink + gold-glow the forward arrow
-    // for 2s as a "turn the page" cue. Fires ONCE per page arrival (armBlink) so a
-    // short clip won't blink repeatedly. Skipped on the last page.
+    // The "turn the page" GLOW CUE on the forward arrow is NOT fired from here.
+    // This `ended` listener and the forward gate's own `ended` listener race, so the
+    // arrow can still be hidden/disabled at this instant; pulseNextArrow() is fired
+    // from releaseVideoGate() instead — i.e. the moment the arrow actually becomes
+    // available — and guards itself against animating an invisible button.
     media.addEventListener("ended", function () {
       if (!opened || !ready || lbdFullscreen || flipped >= totalPages - 1) return;
       if (!leaves[flipped] || !leaves[flipped].contains(media)) return;   // only the current page
@@ -145,12 +151,6 @@ function makeMedia(page) {
       // page-turn guidance (hand swipe + ghost page-flip + blinking arrow), which
       // repeats until the reader turns the page. Any interaction cancels it.
       scheduleVideoEndTutorial();
-      if (!armBlink || !cornerNext) return;      // already blinked for this visit
-      armBlink = false;                          // one blink per page arrival
-      cornerNext.classList.remove("blink1");
-      void cornerNext.offsetWidth;               // restart the animation cleanly
-      cornerNext.classList.add("blink1");
-      setTimeout(function () { cornerNext.classList.remove("blink1"); }, 2050);
     });
   } else {
     media.decoding = "async";
@@ -469,6 +469,13 @@ function updateLbdOverlay() {
 function exitLbd() {
   if (lbdExiting) return;
   lbdExiting = true;
+  // The game is finished: satisfy this page's activity requirement NOW, while `flipped`
+  // still points at the game page. That opens its gate for good (clearedPages), so
+  // paging back to the game later shows a live Next arrow instead of trapping the
+  // learner into replaying it. No glow pulse: we are about to auto-advance anyway, and
+  // a 400ms flash on an arrow nobody was waiting for is just noise.
+  armNextPulse = false;
+  markInteractionComplete(flipped);
   // Stop accepting game input for the whole closing transition.
   if (lbdOverlay) lbdOverlay.style.pointerEvents = "none";
   setLbdFullscreen(false);                    // animate back into the page rectangle
@@ -667,8 +674,8 @@ function renderLeaves() {
    each flip completes and once the cover has finished opening. */
 let mediaDelayTimer = null;   // pending "start this video after N ms" timer
 let mediaDelayIdx = -1;       // which page that pending timer belongs to
-let lastMediaIdx = -1;        // last page refreshMedia handled (to arm the blink once)
-let armBlink = false;         // allow the video-end arrow blink ONCE per page arrival
+let lastMediaIdx = -1;        // last page refreshMedia handled (to arm the pulse once)
+let armNextPulse = false;     // allow the Next-arrow glow pulse ONCE per page arrival
 
 function playVideoNow(v) {
   try {
@@ -711,9 +718,10 @@ function refreshMedia() {
   const idx = flipped;                         // the front-most page right now
   if (idx !== lastMediaIdx) {
     lastMediaIdx = idx;
-    armBlink = true;                           // arm the video-end blink once per page
-    // Re-arm the forward gate for the page we've just landed on — on EVERY arrival,
-    // including arriving backwards, so a revisit never inherits a stale unlock.
+    armNextPulse = true;                       // arm the Next-arrow glow pulse once per page
+    // Re-arm the forward gate for the page we've just landed on. A page the learner
+    // has ALREADY cleared once stays cleared (see clearedPages) — going back must not
+    // make them sit through the whole video again.
     armForwardGate(idx);
   }
   // Left the page a delayed video was counting down on? Cancel that countdown.
@@ -779,8 +787,17 @@ function refreshMedia() {
                                     with no activity start this as true.
 
    On the FIRST story page the Next arrow is not merely disabled — it is absent
-   until both are satisfied, and Back is absent entirely. On later pages Next is
-   present but disabled until the page's video finishes.
+   until both are satisfied, and Back is absent entirely (there is no previous page:
+   the cover is not one). On a GAME page the arrow is likewise absent until the game
+   reports completion, because finishing the game is the only route forward and a
+   visible-but-dead arrow there reads as a way to skip it. On the remaining video
+   pages Next is present but disabled until that page's video finishes.
+
+   ONE-TIME ONLY: a page the learner has already cleared is recorded in clearedPages
+   and arrives UNLOCKED on every later visit, so paging back through the story shows
+   both arrows immediately instead of making them watch each video (or replay each
+   game) again. The set is emptied by resetToStart(), so a fresh read from the cover
+   gates every page properly again.
 
    canNavigateForward() is the single state guard: the Next arrow, the keyboard,
    swipe/drag, the page corners and every programmatic turn all consult it, so
@@ -788,6 +805,8 @@ function refreshMedia() {
    ========================================================================== */
 let firstPageVideoCompleted       = false;
 let firstPageInteractionCompleted = false;
+/* Page indices whose gate has been satisfied at least once this read-through. */
+const clearedPages = new Set();
 let gateArmedIdx  = -1;      // which page the current gate belongs to
 let gateVideoEl   = null;    // the video element the gate is listening to
 let gateWatchdog  = null;    // (duration + 4s) / 30s release timer
@@ -798,7 +817,12 @@ const GATE_WATCHDOG_PAD_MS = 4000;
 const GATE_WATCHDOG_DEFAULT_MS = 30000;
 
 function pageHasVideo(i)       { return !!(pages[i] && pages[i].type === "video"); }
-function pageHasInteraction(i) { return !!(pages[i] && pages[i].interactive); }
+/* A game page ALWAYS owns a required activity — finishing the game — whether or not
+   its config entry remembers to say `interactive: true`. Deriving it from the type
+   means a newly added game page can never ship with an open gate. */
+function pageHasInteraction(i) {
+  return !!(pages[i] && (pages[i].interactive || pages[i].type === "lbd"));
+}
 
 /* Drop the previous page's listeners and timers. Without this, a watchdog armed on
    page 2 could fire while the learner is on page 3 and unlock the wrong page. */
@@ -806,7 +830,7 @@ function disarmForwardGate() {
   clearTimeout(gateWatchdog);
   gateWatchdog = null;
   // Clear the completion flags too. Leaving them set meant that after Home from the
-  // first story page, updateFirstPageNextArrow() still saw "both requirements met" and
+  // first story page, updateNavControls() still saw "both requirements met" and
   // revealed the Next arrow on the COVER.
   firstPageVideoCompleted = false;
   firstPageInteractionCompleted = false;
@@ -818,22 +842,26 @@ function disarmForwardGate() {
   gateArmedIdx = -1;
 }
 
-/* (Re-)arm the gate for a page. Called on EVERY arrival — including arriving
-   backwards — so a revisit always starts locked again rather than inheriting a
-   stale "already finished" flag from the previous visit. */
+/* (Re-)arm the gate for a page. Called on EVERY arrival, including arriving
+   backwards. A page that was cleared earlier in this read-through arrives already
+   open (clearedPages); anything else starts locked rather than inheriting a stale
+   "already finished" flag from a different page. */
 function armForwardGate(idx) {
   disarmForwardGate();
   gateArmedIdx = idx;
   // Drop the previous page's "turn the page" arrow cue. A CSS animation outranks the
   // [disabled] opacity rule, so a leftover blink would leave the NEW page's locked
   // Next arrow pulsing at full brightness — reading as available when it isn't.
-  if (cornerNext) cornerNext.classList.remove("blink", "blink1");
+  stopNextPulse();
+  if (cornerNext) cornerNext.classList.remove("blink");
 
   // A page with no video has nothing to wait for; same for a page with no activity.
-  firstPageVideoCompleted       = !pageHasVideo(idx);
-  firstPageInteractionCompleted = !pageHasInteraction(idx);
+  // A page already cleared once has nothing left to wait for at all.
+  const alreadyCleared = clearedPages.has(idx);
+  firstPageVideoCompleted       = alreadyCleared || !pageHasVideo(idx);
+  firstPageInteractionCompleted = alreadyCleared || !pageHasInteraction(idx);
 
-  if (pageHasVideo(idx)) {
+  if (pageHasVideo(idx) && !alreadyCleared) {
     const leaf = leaves[idx];
     const v = leaf && leaf.querySelector("video.page-media");
     if (!v) {
@@ -873,6 +901,15 @@ function armForwardGate(idx) {
   updateNavControls();
 }
 
+/* Both requirements met for `idx`? Remember it, so returning to this page later
+   arrives unlocked, and play the arrow's glow cue now that it is really available. */
+function noteGateSatisfied(idx) {
+  if (gateArmedIdx !== idx) return;
+  if (!(firstPageVideoCompleted && firstPageInteractionCompleted)) return;
+  clearedPages.add(idx);
+  pulseNextArrow();
+}
+
 function releaseVideoGate(idx, why) {
   if (gateArmedIdx !== idx) return;            // stale timer from a page we've left
   if (firstPageVideoCompleted) return;
@@ -884,6 +921,7 @@ function releaseVideoGate(idx, why) {
                  " — the learner is not blocked.");
   }
   updateNavControls();
+  noteGateSatisfied(idx);                      // after the arrow's state is current
 }
 
 /* Called by a page activity when the learner SUCCESSFULLY completes it. Starting the
@@ -894,6 +932,37 @@ function markInteractionComplete(idx) {
   if (firstPageInteractionCompleted) return;
   firstPageInteractionCompleted = true;
   updateNavControls();
+  noteGateSatisfied(idx);
+}
+
+/* ---- The Next arrow's "you can turn the page now" GLOW PULSE --------------
+   Fired the moment the arrow becomes genuinely available (gate open, visible, not
+   disabled) — never while it is still hidden or greyed. Three quick glowing swells,
+   then the class comes off and the arrow sits in its normal resting state. Once per
+   page arrival, so a short clip can't pulse repeatedly. */
+const NEXT_PULSE_MS = 1800;   // keep in sync with .corner-arrow.glow-pulse in styles.css
+let nextPulseTimer = null;
+
+function stopNextPulse() {
+  clearTimeout(nextPulseTimer);
+  nextPulseTimer = null;
+  if (cornerNext) cornerNext.classList.remove("glow-pulse");
+}
+
+function pulseNextArrow() {
+  if (!cornerNext || !armNextPulse) return;
+  if (!opened || !ready || lbdFullscreen) return;
+  // Only cue a button the learner can actually see and press.
+  if (!cornerNext.classList.contains("is-visible") || cornerNext.disabled) return;
+  armNextPulse = false;                        // one pulse per page arrival
+  clearTimeout(nextPulseTimer);
+  cornerNext.classList.remove("glow-pulse");
+  void cornerNext.offsetWidth;                 // commit, so the animation restarts cleanly
+  cornerNext.classList.add("glow-pulse");
+  nextPulseTimer = setTimeout(function () {
+    cornerNext.classList.remove("glow-pulse"); // ...and back to the normal state
+    nextPulseTimer = null;
+  }, NEXT_PULSE_MS + 60);
 }
 
 /* THE single forward guard. */
@@ -905,12 +974,13 @@ function canNavigateForward() {
   return firstPageVideoCompleted && firstPageInteractionCompleted;
 }
 
-/* The first-page arrow rule, exactly as specified. */
-function updateFirstPageNextArrow() {
-  const canShowNext = firstPageVideoCompleted && firstPageInteractionCompleted;
-  cornerNext.classList.toggle("is-visible", canShowNext);
-  cornerNext.disabled = !canShowNext;
-  cornerNext.setAttribute("aria-hidden", String(!canShowNext));
+/* Which pages hide the Next arrow OUTRIGHT while their gate is shut, rather than
+   showing it greyed out:
+     • the first story page  — the spec's rule;
+     • every game page       — completing the game is the only route forward, so a
+                               dead arrow sitting there reads as a way to skip it. */
+function nextArrowHiddenWhileLocked(i) {
+  return i === 0 || isLbdPage(i);
 }
 
 /* ---- Navigation (drives the CSS leaf flip) ------------------------------ */
@@ -975,19 +1045,18 @@ function updateNavControls() {
     cornerPrev.setAttribute("aria-hidden", String(firstStoryPage));
   }
 
-  // NEXT: on the first story page it is hidden until BOTH requirements are met; on
-  // every later page it is present but disabled until that page's video finishes.
+  // NEXT: absent until the gate opens on the first story page and on the game pages
+  // (nextArrowHiddenWhileLocked); present but disabled on the other video pages until
+  // that page's video finishes. Either way a page already cleared once arrives with
+  // the gate open, so paging back shows a live arrow immediately.
   if (cornerNext) {
     const gateOpen = firstPageVideoCompleted && firstPageInteractionCompleted;
-    if (firstStoryPage) {
-      updateFirstPageNextArrow();
-      if (!ready) cornerNext.disabled = true;
-    } else {
-      cornerNext.classList.toggle("is-visible", opened && !onEnd);
-      cornerNext.disabled = !ready || onEnd || !gateOpen;
-      cornerNext.setAttribute("aria-hidden", String(onEnd));
-    }
+    const show = !onEnd && (gateOpen || !nextArrowHiddenWhileLocked(flipped));
+    cornerNext.classList.toggle("is-visible", show);
+    cornerNext.disabled = !ready || onEnd || !gateOpen;
+    cornerNext.setAttribute("aria-hidden", String(!show));
     cornerNext.setAttribute("aria-disabled", String(!!cornerNext.disabled));
+    if (!show) stopNextPulse();      // never leave a glow running on a hidden arrow
   }
 }
 /* Kept as an alias: several call sites read as "the page changed, refresh chrome". */
@@ -1068,6 +1137,8 @@ function resetToStart() {
   exitFullscreen();           // back at the cover → leave fullscreen
   teardownLbd();              // no overlay, no game audio, no stale fullscreen classes
   disarmForwardGate();        // drop any pending video watchdog from the page we left
+  clearedPages.clear();       // a fresh read from the cover gates every page again
+  stopNextPulse();
   ready = false; opened = false; flipped = 0;
   renderLeaves();
   leaves.forEach(function (leaf) {
@@ -1099,7 +1170,8 @@ function closeBookToCover(afterReset) {
   clearTimeout(_openTimer);
   clearTimeout(_homeTimer);
   hideFlipHint(); clearTimeout(idleHintTimer); clearTimeout(nudgeHideTimer);
-  if (cornerNext) cornerNext.classList.remove("blink", "blink1");
+  stopNextPulse();
+  if (cornerNext) cornerNext.classList.remove("blink");
   var v = currentVideo(); if (v) { try { v.pause(); } catch (_) {} }
   // pages back UNDER the cover, so the closing cover sweeps over them
   flipbookEl.style.zIndex = "";
@@ -1664,6 +1736,8 @@ window.Flipbook = {
       hasVideo: pageHasVideo(flipped),
       hasInteraction: pageHasInteraction(flipped),
       canForward: canNavigateForward(),
+      cleared: Array.from(clearedPages).sort(function (a, b) { return a - b; }),
+      nextHiddenWhileLocked: nextArrowHiddenWhileLocked(flipped),
       lbdFullscreen: lbdFullscreen,
       lbdStarted: lbdStarted,
       lbdLoaded: lbdFrame ? (lbdFrame.dataset.loaded || "") : "",

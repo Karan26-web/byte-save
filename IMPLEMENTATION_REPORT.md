@@ -359,10 +359,20 @@ scale composes with the mirror instead of overwriting it — asserted in both st
 > right of its corner.
 
 **First story page**, per the appended rules: Back is `display:none !important` (absent,
-not faded). Next is absent until `firstPageVideoCompleted && firstPageInteractionCompleted`
-via `updateFirstPageNextArrow()`, which toggles `.is-visible`, `disabled` and `aria-hidden`
-exactly as specified. On later pages Next is present but disabled until that page's video
-finishes. Back and Home stay usable while a page video plays.
+not faded — there is no previous page, the cover is not one). Next is absent until
+`firstPageVideoCompleted && firstPageInteractionCompleted`; `updateNavControls()` toggles
+`.is-visible`, `disabled` and `aria-hidden` exactly as specified.
+
+**Game pages** follow the same absent-until-open rule (`nextArrowHiddenWhileLocked()`):
+completing the game is the only route forward, so a visible-but-dead arrow there would read
+as a way to skip it. On the remaining video pages Next is present but disabled until that
+page's video finishes. Back stays usable while a page video plays.
+
+**Revisits are free.** A page whose gate has been satisfied once is recorded in
+`clearedPages` and arrives unlocked on every later visit, so paging back shows both arrows
+live immediately instead of making the learner sit through the video (or replay the game)
+a second time. `resetToStart()` empties the set, so a fresh read from the cover gates
+every page again.
 
 ## 18. Video-gating implementation
 
@@ -371,22 +381,34 @@ arrow, `ArrowRight`, pointer drag/swipe, the clickable page corner, and every pr
 turn (`Flipbook.goNext()`). Disabling the visible button is never the only lock — each
 route is probed independently in the suite.
 
-* Re-armed on **every** arrival, including arriving backwards, so a revisit re-locks rather
-  than inheriting a stale unlock. `disarmForwardGate()` drops the previous page's listeners
-  and timers first, so a watchdog armed on page 2 can never unlock page 3.
+* Re-armed on **every** arrival, including arriving backwards. A page listed in
+  `clearedPages` (its gate was satisfied earlier in this read) arms already-open; anything
+  else arms locked rather than inheriting a stale unlock from a different page.
+  `disarmForwardGate()` drops the previous page's listeners and timers first, so a watchdog
+  armed on page 2 can never unlock page 3.
 * Three release paths, always: `ended`, `error`, and a watchdog of `duration + 4 s`
   (30 s when duration is unknown, re-armed from `loadedmetadata` once the real duration
   arrives so a long clip is not cut off at 30 s). An element that *already* errored before
   the listener attached is caught by checking `v.error` directly.
-* Pages with no video are never gated. A page can also declare `interactive: true`, adding
-  a second requirement satisfied only by `Flipbook.markInteractionComplete()` — stray taps
-  do not count.
+* Pages with no video are never gated *by the video gate*. A page can also declare
+  `interactive: true`, adding a second requirement satisfied only by
+  `Flipbook.markInteractionComplete()` — stray taps do not count. Every `lbd` page counts as
+  interactive whatever its config entry says (`pageHasInteraction()` derives it from the
+  type), so a newly added game page can never ship with an open gate; `exitLbd()` satisfies
+  it from the game's own `lbd-complete` message.
 * `animating` doubles as the one-page-per-turn lock (set synchronously in `goNext`), so a
   double- or triple-tap advances exactly one page.
-* Bug found and fixed: the previous page's `blink1` "turn the page" arrow cue survived the
+* Bug found and fixed: the previous page's one-shot "turn the page" arrow cue survived the
   page change, and a CSS animation outranks the `[disabled]` opacity rule — so a *locked*
   Next arrow kept pulsing at full brightness, reading as available. `armForwardGate()` now
-  clears `blink`/`blink1`.
+  calls `stopNextPulse()` and clears `blink`.
+* The cue itself is now a **glow pulse** (`.corner-arrow.glow-pulse` → `nextGlowPulse`,
+  3 × 600 ms of a neon-cyan halo plus a matching scale, then back to the resting state). It
+  replaced the old opacity-dipping `blink1`, which read as *disabled* on the very button it
+  was advertising. It is fired from `releaseVideoGate()` / `markInteractionComplete()` — the
+  instant the arrow really becomes available — not from the video's own `ended` listener,
+  which races the gate's and could fire while the button was still hidden. `pulseNextArrow()`
+  refuses to animate a hidden or disabled arrow, and runs once per page arrival.
 
 ## 19. Playwright test results
 
@@ -426,7 +448,7 @@ wait; passes at both viewports.
 |---|---|
 | `loading.spec.js` | Stage A loader, monotonic byte-aware progress, pop-in, bypass attempts, failed-fetch resilience, small-before-large ordering, Stage B timing |
 | `nav.spec.js` | control geometry + glyph/frame overlap, cover state, first-page Back absence, last-page state, mirroring under hover/active, disabled styling, accessibility, return-to-cover |
-| `gating.spec.js` | every video page locked; **all five** forward routes blocked; broken-video `error` path; stalled-video watchdog; re-arm on revisit; the first-page dual gate in all four combinations |
+| `gating.spec.js` | every video page locked; **all five** forward routes blocked; broken-video `error` path; stalled-video watchdog; cleared pages stay unlocked on revisit (both arrows live) while un-cleared pages stay gated; the game page's absent Next + all five routes blocked until completion; the one-shot glow pulse; Replay re-gating; the first-page dual gate in all four combinations |
 | `lbd.spec.js` | hidden silent warm-up, dev-tool absence, idle asset warming, page-frame reveal, `lbd-start`→fullscreen, no reload during expansion, playability, narration-gated completion, auto-advance, teardown/re-warm, leave-before-start, Home, Replay, LBD 2 full playthrough, focus |
 | `crawl.spec.js` | all 7 pages: JS errors, response codes, image `naturalWidth`/`complete`, posters, video error state, gate release, nav state, screenshots + blank/uniform-colour detection; GPU windowing; ghosting |
 | `smoke.spec.js` | fast boot diagnostic (not an acceptance test) |

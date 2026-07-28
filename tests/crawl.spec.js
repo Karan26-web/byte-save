@@ -98,7 +98,13 @@ test("crawl every page: no JS errors, no bad responses, media healthy", async ({
     }
 
     // Gated controls must eventually become available (or the page is the last one).
+    // A GAME page never opens on its own — its gate waits for the game to report
+    // completion — so satisfy that requirement through the public API here. This crawl
+    // is about media health; tests/lbd*.spec.js drive the real completion path.
     if (target < 6) {
+      if (s.hasInteraction) {
+        await page.evaluate(() => window.Flipbook.markInteractionComplete());
+      }
       await page.waitForFunction(() => window.Flipbook.gateState().canForward, null, { timeout: 70000 });
     }
 

@@ -291,16 +291,30 @@
   /* The RIGHT (forward) arrow blinks while the nudge is playing, to draw the eye. */
   .corner-arrow.blink { animation: arrowBlink 0.6s ease-in-out infinite; }
   @keyframes arrowBlink { 0%, 100% { opacity: 0.96; } 50% { opacity: 0.2; } }
-  /* One-shot 2s blink + CYAN GLOW played ONCE when a page's video fully ends
-     (a "turn the page" cue). Pulses opacity AND a neon-cyan glow around the arrow. */
-  .corner-arrow.blink1 { animation: arrowBlink1 2s ease-in-out 1; }
-  @keyframes arrowBlink1 {
-    0%, 100% { opacity: 0.95; filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55)) drop-shadow(0 0 6px  rgba(60,210,255,0.6)); }
-    25%, 75% { opacity: 0.3;  filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55)) drop-shadow(0 0 3px  rgba(60,210,255,0.3)); }
-    50%      { opacity: 1;    filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(60,210,255,1)); }
+  /* GLOW PULSE — played ONCE, at the moment the Next arrow becomes available (the
+     page's video ended / its activity was completed), to pull the eye to it. THREE
+     quick swells of a neon-cyan halo with a matching scale-up, 600ms each, then JS
+     drops the class and the arrow sits in its normal resting state. Deliberately not
+     a blink: opacity stays high the whole time, so the arrow never reads as disabled
+     (which is exactly what the old 2s opacity-dipping cue did). Same specificity as
+     .blink, so it is declared AFTER it on purpose: if the idle nudge is mid-flight
+     when the cue fires, document order makes the one-shot pulse the animation that
+     wins. Keep the 1.8s total in sync with NEXT_PULSE_MS in script.js. */
+  .corner-arrow.glow-pulse { animation: nextGlowPulse 600ms ease-in-out 3; }
+  /* Animates ONLY filter + transform — opacity is deliberately left out so the
+     button's own 400ms opacity transition still fades it in underneath the pulse
+     (an animated opacity would override that transition and make the arrow pop). */
+  @keyframes nextGlowPulse {
+    0%, 100% { transform: scale(1);
+               filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55))
+                       drop-shadow(0 0 5px  rgba(60,210,255,0.45)); }
+    50%      { transform: scale(1.14);
+               filter: drop-shadow(0 2px 7px rgba(0,0,0,0.55))
+                       drop-shadow(0 0 20px rgba(60,210,255,0.95))
+                       drop-shadow(0 0 34px rgba(60,210,255,0.55)); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .flip-hint.show, .corner-arrow.blink, .corner-arrow.blink1 { animation: none; }
+    .flip-hint.show, .corner-arrow.blink, .corner-arrow.glow-pulse { animation: none; }
   }
 
   /* ==========================================================================

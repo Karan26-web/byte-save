@@ -1,0 +1,24 @@
+# deployment
+.vercel
+
+# macOS junk
+.DS_Store
+**/.DS_Store
+
+# editors / IDEs
+.vscode/
+.idea/
+
+# dependencies & builds (if ever added)
+node_modules/
+dist/
+
+# local test pages & scratch files
+test_*.html
+*.log
+
+# dev-only floating debug widget (index.html loads it if present locally; remove its <script> line to ship)
+debug.js
+
+# local captures / recordings — not game assets
+Media/

@@ -324,7 +324,7 @@
 
   /* end-screen "NEXT" — pinned to the bottom-right corner of the world frame (right-anchored,
      no translateX, so the .navBtn hover/press scale transforms stay intact).
-     Hidden until revealEndBtn() runs: the closing VO plays first, THEN the button pops. */
+     Hidden until revealEndBtn() runs: the video's own closing line plays first, THEN the button pops. */
   #endBtn{ right:calc(var(--world-x) + var(--world-w)*.03); left:auto; width:fit-content;
     bottom:calc(var(--world-y) + var(--world-h)*.05);
     opacity:0; pointer-events:none; }
@@ -389,6 +389,107 @@
   #welcome.lines #welcomeTitle .w1{ transform:translateY(calc(-1 * var(--title-gap))) scale(1); }
   #welcome.lines #welcomeTitle .w2{ transform:translateY(var(--title-gap)) scale(1); }
   #welcome.lines #welcomeTitle .w2{ transition-delay:.8s; }   /* line 2 follows line 1 (delay only on the way IN) */
+
+  /* ================================================================================
+     ROUTE BOARD — the between-levels progress beat, shown after every delivery.
+     A bunting line strung across the card with ONE parcel hanging per level:
+       • delivered → the real parcel art, full colour, green tick under it
+       • missed    → stays ghosted, neutral grey ✗ (informative, never a telling-off)
+       • not reached → ghosted, no mark
+     The route above fills solid up to the last stop Byte has left, dashed beyond.
+     Everything is sized in --u (1% of the PLAYFIELD height), so the whole board
+     scales with the letterboxed frame exactly like the rest of the overlay UI.
+     ================================================================================ */
+  #routeScreen{ position:fixed; inset:0; z-index:64; display:flex; align-items:center; justify-content:center;
+    pointer-events:none;                 /* a pure beat — it plays itself out, nothing to tap */
+    opacity:0; visibility:hidden;
+    -webkit-backdrop-filter:blur(0px); backdrop-filter:blur(0px); background:rgba(20,30,60,0);
+    transition:opacity .4s ease, backdrop-filter .4s ease, -webkit-backdrop-filter .4s ease, background .4s ease, visibility .4s; }
+  #routeScreen.show{ opacity:1; visibility:visible;      /* same blur-the-playscreen idiom as #welcome */
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); background:rgba(20,30,60,.22); }
+
+  /* The card is drawn ENTIRELY IN CODE — no image asset. Three layers, all scaling off --u:
+       #routeCard   the white bezel + its soft lift shadow (a plain rounded rect, so a normal
+                    box-shadow is exact — no alpha silhouette to work around)
+       .rc-face     the cream interior, one notch smaller, clipping everything inside it
+       .rc-dunes    inline SVG: the layered tan dunes across the bottom (curves are the one
+                    thing CSS shapes can't do cleanly, and inline SVG is still just code —
+                    the same idiom the ticks and arrows already use)
+     3:2 like the art it replaces, so the % placements of the title and bunting row still land. */
+  #routeCard{ position:relative;
+    width:min(calc(var(--u)*111), 94vw); aspect-ratio:3/2;
+    background:linear-gradient(180deg,#fff 0%,#fffdfa 100%);
+    border-radius:calc(var(--u)*3.6);
+    box-shadow:0 calc(var(--u)*1.3) calc(var(--u)*2.6) rgba(62,42,16,.3),
+               0 calc(var(--u)*.2)  calc(var(--u)*.5)  rgba(62,42,16,.12);
+    transform:scale(.9) translateY(calc(var(--u)*2.5));
+    transition:transform .45s cubic-bezier(.34,1.6,.5,1); }
+  #routeScreen.show #routeCard{ transform:scale(1) translateY(0); }
+  #routeCard .rc-face{ position:absolute; inset:calc(var(--u)*1.1); z-index:0; overflow:hidden;
+    border-radius:calc(var(--u)*2.7);
+    background:linear-gradient(180deg,#fefaf4 0%,#fdf6ed 46%,#fdf1e4 100%); }
+  #routeCard .rc-dunes{ position:absolute; left:0; right:0; bottom:-1px;   /* -1px: no hairline gap under the fill */
+    width:100%; height:28.6%; display:block; }        /* 260/908 — the band's share of the face in the traced art */
+
+  /* title block */
+  #routeCard .rc-head{ position:absolute; left:10%; right:10%; top:15%; z-index:2; text-align:center; }
+  #routeCard .rc-title{ font-weight:800; color:#3f2d20; letter-spacing:.01em;
+    font-size:calc(var(--u)*5.4); line-height:1.12; }
+  /* hairline rule with a centre diamond, straight from the mockup */
+  #routeCard .rc-rule{ position:relative;
+    margin:calc(var(--u)*1.5) auto 0; width:36%; height:calc(var(--u)*.28);
+    background:linear-gradient(90deg, rgba(198,152,74,0), rgba(198,152,74,.9), rgba(198,152,74,0)); }
+  #routeCard .rc-rule::after{ content:""; position:absolute; left:50%; top:50%;
+    width:calc(var(--u)*1.5); aspect-ratio:1; background:#c8973f;
+    transform:translate(-50%,-50%) rotate(45deg); border-radius:calc(var(--u)*.2); }
+
+  /* ---- the bunting row — hung so the ticks land just above the card's dunes ---- */
+  #routeLine{ position:absolute; left:7%; right:7%; top:43%; z-index:2;
+    display:flex; align-items:flex-start; }
+  /* the road ahead — dashed, spanning first node centre to last node centre */
+  #routeLine::before{ content:""; position:absolute; z-index:0; top:calc(var(--u)*1.65);
+    left:calc(100% / (2 * var(--n, 8))); right:calc(100% / (2 * var(--n, 8)));
+    border-top:calc(var(--u)*.6) dashed #cbc4b5; }
+  /* the stretch already walked — grows a stop at a time */
+  #routeFill{ position:absolute; z-index:1; top:calc(var(--u)*1.65); width:0;
+    left:calc(100% / (2 * var(--n, 8)));
+    border-top:calc(var(--u)*.75) solid #1f7fd0;
+    transition:width .55s cubic-bezier(.35,.9,.3,1); }
+
+  .rSlot{ position:relative; z-index:2; flex:1 1 0; min-width:0;
+    display:flex; flex-direction:column; align-items:center; }
+  .rSlot .rNode{ width:calc(var(--u)*3.3); aspect-ratio:1; border-radius:50%; background:#b8b2a5;
+    box-shadow:inset 0 0 0 calc(var(--u)*.45) rgba(255,255,255,.8),
+               0 calc(var(--u)*.3) calc(var(--u)*.7) rgba(80,60,30,.2);
+    transition:background .35s ease; }
+  .rSlot.done .rNode, .rSlot.missed .rNode{ background:#1f7fd0; }   /* the stop has been visited, however it went */
+  .rSlot .rString{ width:calc(var(--u)*.4); height:calc(var(--u)*3.2); background:#cfc7b7; }
+  /* 78% keeps clear air between neighbours at 8 slots (and more, if levels are added) */
+  .rSlot .rBox{ width:min(78%, calc(var(--u)*9.5)); height:auto; display:block;
+    opacity:.45; filter:grayscale(1) brightness(1.4) contrast(.7);
+    transition:opacity .35s ease, filter .35s ease; }
+  .rSlot.done .rBox{ opacity:1;
+    filter:drop-shadow(0 calc(var(--u)*.8) calc(var(--u)*1.1) rgba(90,60,20,.32)); }
+  /* the newest parcel drops onto the line — the beat the pop sound lands on.
+     TRANSFORM ONLY: opacity is left to the .done transition above, so if the animation never
+     runs (reduced motion, a throttled tab) the parcel is simply there instead of invisible. */
+  .rSlot.pop .rBox{ animation:rBoxDrop .5s cubic-bezier(.34,1.7,.5,1); }
+  @keyframes rBoxDrop{
+    0%  { transform:translateY(calc(var(--u)*-4.5)) scale(.35); }
+    58% { transform:translateY(0) scale(1.14); }
+    78% { transform:translateY(0) scale(.96); }
+    100%{ transform:translateY(0) scale(1); } }
+  /* tick / ✗ under the parcel. Its own class, NOT .done/.missed: the parcel has to land first,
+     so showRoute() adds .marked only once the drop has finished playing. */
+  .rSlot .rMark{ margin-top:calc(var(--u)*2);
+    width:calc(var(--u)*5.6); aspect-ratio:1; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:#ded8ca; box-shadow:0 calc(var(--u)*.5) calc(var(--u)*1) rgba(80,60,30,.26);
+    transform:scale(0); transition:transform .32s cubic-bezier(.34,1.8,.5,1); }
+  .rSlot .rMark svg{ width:62%; height:62%; }
+  .rSlot.done .rMark{ background:linear-gradient(180deg,#8ed450 0%,#4da520 100%); }
+  .rSlot.missed .rMark{ background:linear-gradient(180deg,#e7e1d3 0%,#cfc8b8 100%); }
+  .rSlot.marked .rMark{ transform:scale(1); }
 
   /* ===== Rotate-your-device overlay — phones play in LANDSCAPE only ===== */
   #rotateOverlay{ display:none; position:fixed; inset:0; z-index:200; background:#7bc043;
@@ -482,8 +583,8 @@
     <!-- END SCREEN -->
     <div id="endScreen" class="screen hide">
       <!-- celebration video, WITH its own audio (background music fades out as it starts) — plays ONCE and holds on its last frame -->
-      <video id="endVideo" class="full" playsinline preload="auto" aria-label="Well done"><source src="Assets/Video/Lastscreen.webm" type="video/webm" /></video>
-      <!-- appears only AFTER the celebration video finishes — replays the game from the start -->
+      <video id="endVideo" class="full" playsinline preload="auto" aria-label="Great job"><source src="Assets/Video/Lastscreen.webm" type="video/webm" /></video>
+      <!-- pops on the closing "BYTE SAVED THE DAY" card, alongside its VO — replays the game from the start -->
       <button id="endBtn" type="button" class="navBtn" aria-label="Next"><span class="lbl">NEXT</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12M12 5l7 7-7 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
 
@@ -492,6 +593,34 @@
       <div id="welcomeTitle" role="img" aria-label="Help Byte, deliver the parcels!">
         <img class="w1" src="Assets/UI/WelcomeLine1.svg" alt="" />
         <img class="w2" src="Assets/UI/WelcomeLine2.svg" alt="" />
+      </div>
+    </div>
+
+    <!-- ROUTE BOARD — the beat after every delivery: one hanging parcel per level, the newest
+         one drops onto the line with a pop. Slots are built by buildRoute(); the cloud curtain
+         (z-index 82) sweeps over this on the way to the next level, which is when it hides. -->
+    <div id="routeScreen" class="hide" role="status" aria-live="polite">
+      <div id="routeCard">
+        <!-- the card face, drawn in code: cream interior + layered dunes (no image asset).
+             preserveAspectRatio="none" lets the band stretch with the card; the paths overlap
+             with translucent fills, so the crossings shade themselves. -->
+        <div class="rc-face">
+          <!-- These three paths are not hand-drawn: they were TRACED off the reference card art
+               (its three tan tones' boundaries sampled per column, smoothed, fitted to cubics)
+               so the dunes match the original exactly. Each fills to the floor and they are
+               painted pale→dark; the boundaries converge at both ends and separate through the
+               middle, which is what reads as two waves crossing. Fills are the art's own colours. -->
+          <svg class="rc-dunes" viewBox="0 0 1418 260" preserveAspectRatio="none" aria-hidden="true">
+            <path fill="#fbefe2" d="M0 27 C9 27 35 26 52 27 C69 28 87 31 104 35 C121 39 139 48 156 51 C173 53 191 51 208 51 C225 51 243 51 260 53 C277 54 295 56 312 59 C329 62 347 65 364 69 C381 73 399 77 416 82 C433 88 451 93 468 99 C485 106 503 112 520 119 C537 125 555 135 572 139 C589 142 607 142 624 139 C641 137 659 128 676 123 C693 118 711 113 728 108 C745 103 763 99 780 95 C797 91 815 87 832 84 C849 81 867 79 884 77 C901 75 919 73 936 72 C953 72 971 71 988 71 C1005 72 1023 72 1040 74 C1057 75 1075 78 1092 80 C1109 83 1127 86 1144 90 C1161 93 1179 98 1196 101 C1213 105 1231 111 1248 112 C1265 113 1283 110 1300 109 C1317 107 1335 106 1352 105 C1369 105 1393 105 1404 105 C1415 105 1416 105 1418 105 L1418 260 L0 260 Z"/>
+            <path fill="#f9ead9" d="M0 27 C9 27 35 25 52 27 C69 29 87 32 104 36 C121 40 139 46 156 53 C173 59 191 66 208 74 C225 82 243 94 260 101 C277 108 295 110 312 117 C329 124 347 134 364 143 C381 151 399 162 416 169 C433 175 451 180 468 181 C485 181 503 175 520 171 C537 167 555 158 572 156 C589 154 607 155 624 159 C641 162 659 171 676 177 C693 182 711 187 728 192 C745 196 763 201 780 205 C797 208 815 212 832 211 C849 211 867 204 884 200 C901 195 919 190 936 185 C953 180 971 175 988 170 C1005 165 1023 161 1040 156 C1057 152 1075 148 1092 144 C1109 139 1127 135 1144 132 C1161 128 1179 125 1196 122 C1213 120 1231 117 1248 115 C1265 112 1283 110 1300 109 C1317 108 1335 107 1352 106 C1369 106 1393 106 1404 106 C1415 106 1416 106 1418 106 L1418 260 L0 260 Z"/>
+            <path fill="#f4e1ca" d="M0 28 C9 28 35 27 52 28 C69 29 87 32 104 37 C121 41 139 48 156 55 C173 61 191 69 208 77 C225 85 243 93 260 102 C277 110 295 119 312 127 C329 135 347 143 364 150 C381 158 399 165 416 171 C433 178 451 184 468 190 C485 197 503 203 520 209 C537 215 555 220 572 225 C589 229 607 232 624 235 C641 237 659 238 676 238 C693 238 711 237 728 235 C745 233 763 230 780 226 C797 223 815 219 832 214 C849 210 867 205 884 200 C901 195 919 190 936 185 C953 180 971 175 988 171 C1005 166 1023 161 1040 157 C1057 152 1075 148 1092 144 C1109 140 1127 137 1144 133 C1161 130 1179 126 1196 123 C1213 120 1231 118 1248 115 C1265 113 1283 111 1300 109 C1317 108 1335 107 1352 106 C1369 106 1393 106 1404 106 C1415 106 1416 106 1418 106 L1418 260 L0 260 Z"/>
+          </svg>
+        </div>
+        <div class="rc-head">
+          <h2 class="rc-title">Parcels Delivered</h2>
+          <div class="rc-rule" aria-hidden="true"></div>
+        </div>
+        <div id="routeLine"><span id="routeFill" aria-hidden="true"></span></div>
       </div>
     </div>
 
@@ -1040,10 +1169,88 @@ async function showHouseBadge(el, side){   // pop a bubble over a house — repl
   el.classList.remove("show");
   await sleep(250);
 }
+/* ==========================================================================
+   ROUTE BOARD — the progress beat between levels.
+   One hanging parcel per level, left to right, so a child can SEE the run
+   filling up: what's landed, what's still to come, how far along Byte is.
+   Called once per level, after Byte walks off-frame; the next level's cloud
+   sweep is what takes it away (routeHide() runs while the clouds cover).
+   ========================================================================== */
+const routeScreen=$("routeScreen"), routeLine=$("routeLine"), routeFill=$("routeFill");
+const popAudio=new Audio("Audio/pop.ogg"); popAudio.preload="auto";
+function sfxBoxPop(){ try{ popAudio.currentTime=0; const p=popAudio.play(); if(p&&p.catch)p.catch(()=>{}); }catch(e){} }
+let routeState=[];        // per level index: "done" | "missed" | undefined (not reached yet)
+/* Pacing. The board is the one moment in the run with nothing to do, so it has to hold long
+   enough to actually be read, and its two events have to land ONE AT A TIME:
+   settle → the parcel drops with the pop → THEN the tick → sit on the finished board. */
+const ROUTE_SETTLE=800;         // card is up and still before anything lands on it
+const ROUTE_MARK_GAP=560;       // parcel drop is .5s — the tick waits for it to finish, never shares the beat
+const ROUTE_HOLD=2600;          // …and the board stays put after the tick
+const ROUTE_HOLD_MISS=2200;     // nothing landed — no need to dwell as long
+const MARK_TICK='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7L10 17l-6-6" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const MARK_X   ='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="#a49c8a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/* Renders the board. `pending` is the slot whose parcel has NOT landed yet: it's built
+   bare so its verdict can be added a moment later and actually animate (a class that's
+   already on the element at first paint gets no transition). */
+function buildRoute(pending){
+  const n=LEVELS.length;
+  routeLine.style.setProperty("--n", n);
+  routeLine.querySelectorAll(".rSlot").forEach(el=>el.remove());
+  for(let i=0;i<n;i++){
+    const st = (i===pending) ? null : routeState[i];
+    const slot=document.createElement("div");
+    slot.className = "rSlot" + (st ? " "+st+" marked" : "");   // settled slots show their mark from the off
+    // the pending slot's mark is left EMPTY — its glyph is set once the verdict is known,
+    // so a slot can never flash the wrong symbol under its (scaled-out) circle
+    const mark = st==="done" ? MARK_TICK : st==="missed" ? MARK_X : "";
+    slot.innerHTML =
+      '<span class="rNode"></span><span class="rString"></span>'+
+      '<img class="rBox" src="Assets/Parcel.webp" alt="" />'+
+      '<span class="rMark">'+mark+'</span>';
+    routeLine.appendChild(slot);
+  }
+}
+/* how far the solid route reaches: node centres sit at (i+.5)/n, so the run from the
+   first node to node `last` is exactly last/n of the row's width */
+function routeReach(pending){
+  let last=-1;
+  for(let i=0;i<LEVELS.length;i++) if(routeState[i] && i!==pending) last=i;
+  return (last<=0 ? 0 : last/LEVELS.length*100)+"%";
+}
+function routeHide(){ routeScreen.classList.remove("show"); routeScreen.classList.add("hide"); }
+
+/* The beat, in strict order so a child can follow one thing at a time:
+   1. the board fades up showing the run SO FAR
+   2. this level's parcel drops onto the line WITH the pop, and the route stretches to its stop
+   3. only once that has finished landing does the tick (or ✗) appear under it
+   4. the finished board holds. */
+async function showRoute(idx){
+  const st = routeState[idx] || "missed";
+  buildRoute(idx);                                  // the board as it stood before this delivery
+  routeFill.style.width = routeReach(idx);
+  routeScreen.classList.remove("hide");
+  void routeScreen.offsetWidth;                     // paint the "before" state, so the fade + fill animate
+  routeScreen.classList.add("show");
+  await sleep(ROUTE_SETTLE);                        // the card settles before anything lands on it
+
+  const slot = routeLine.querySelectorAll(".rSlot")[idx];
+  if(slot){                                         // the parcel drops in and the node turns blue…
+    slot.querySelector(".rMark").innerHTML = (st==="missed") ? MARK_X : MARK_TICK;
+    slot.classList.add(st, "pop");
+  }
+  routeFill.style.width = routeReach();             // …the route reaches this stop…
+  if(st==="done") sfxBoxPop();                      // …and pop.ogg lands with the box
+
+  await sleep(ROUTE_MARK_GAP);                      // the drop plays out in full before the mark shows
+  if(slot) slot.classList.add("marked");            // NOW the tick / ✗ pops under the parcel
+  await sleep(st==="done" ? ROUTE_HOLD : ROUTE_HOLD_MISS);   // hold long enough to read the board
+}
+
 async function showDelivered(side){   // "Delivered! ✓" over the winning house
   score++;                             // counted quietly — only the end screen shows a total
-  // two recorded takes — alternating keeps repeat plays fresh; the clap waits its turn so it never talks over the line
-  voSay(Math.random()<0.5 ? "delivered" : "parcel-delivered").then(sfxClap);
+  // always the same line ("Delivered!") so every successful drop sounds identical; the clap waits its turn so it never talks over the line
+  voSay("delivered").then(sfxClap);
   await showHouseBadge(deliveredBadge, side);
 }
 function hideParcel(){ parcel.classList.add("hide"); }
@@ -1253,6 +1460,7 @@ async function houseHappy(side){   // the house gives a joyful squash-stretch ho
 /* ===================== Config + state ===================== */
 const RETRY_LEVELS=3;   // the first three levels are practice: a missed delivery REPLAYS the level (new colours); from level 4 it's one shot
 let target="left", targetColor="blue", score=0, round=0, busy=false, runActive=false, curSprite="back", lastFootX=0, lastFootY=0;
+/* ?lvl=N in the URL starts play from level N (handy for testing a single level) */
 /* Play always begins at the first level — no URL level-skip. */
 const START_LVL = 0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1522,15 +1730,16 @@ function sfxBark(){            // synth fallback — 3 rough woofs with an outdo
    ONE shared channel: a new line stops the one still playing (no overlapping voices),
    the background music ducks while a line plays, and voSay() resolves when the line
    ends — so scenes can pace on it (await) or just let it colour a moment (fire & forget). */
-/* NOTE: "byte-delivery-mission.ogg" was removed from this list — that file is not in the
+/* NOTE: "byte-delivery-mission" is deliberately absent — that clip is not in the shipped
    VO pack, so every run 404'd on it and the opening cloud sweep played no title line
    anyway. The mission is still narrated by "help-byte" + "deliver-the-parcels" below. */
 const VO={}; ["help-byte","deliver-the-parcels",
   "deliver-red","deliver-blue","deliver-yellow","left-turn","right-turn",
   "moving-left","moving-right","no-road","wrong-delivery",
-  "delivered","parcel-delivered","great-job"
+  "delivered","great-job"
 ].forEach(n=>{ const a=new Audio("Audio/VO/"+n+".ogg"); a.preload="auto"; VO[n]=a; });
-VO["byte-saved-the-day"]=new Audio("Audio/Byte Saved the Day.ogg"); VO["byte-saved-the-day"].preload="auto";  // closing line — plays once the celebration video ends, as NEXT appears
+VO["byte-saved-the-day"]=new Audio("Audio/And just like that, Byte Saved the Day (1).ogg"); VO["byte-saved-the-day"].preload="auto";  // closing line — lands as the end video reaches its "BYTE SAVED THE DAY" card (its own narration goes silent at ~28s)
+VO["lets-celebrate"]=new Audio("Audio/lets%20celebrate.mp3"); VO["lets-celebrate"].preload="auto";  // 2.7s — cues the dance: the end video holds on its "MISSION ACCOMPLISHED" banner while this plays
 let voNow=null;
 function voSay(name){
   const a=VO[name]; if(!a) return Promise.resolve();
@@ -1546,7 +1755,7 @@ function voSay(name){
       a.currentTime=0;
       a.addEventListener("ended", fin, {once:true});
       const p=a.play(); if(p&&p.catch) p.catch(fin);         // blocked/missing → carry on silently
-      setTimeout(fin, 4000);                                 // safety net (longest line ≈2.6s)
+      setTimeout(fin, Math.max(4000, ((a.duration||0)+0.8)*1000));  // safety net — sized to the line (the closing one runs ≈4.7s)
     }catch(e){ fin(); }
   });
 }
@@ -1606,12 +1815,14 @@ function confetti(parent){
     fc.querySelector('.fc-label').textContent = label || '';
     fc.classList.remove('part','closed');
     fc.classList.add('show');       // clouds drift in
-    await sleep(720);               // full cover
+    await sleep(950);               // FULL cover — the slowest cloud (max --din .18s + .66s flight) lands ~.84s in;
+                                    // swapping any earlier lets the next screen peek through the closing gaps
     if (onCover) onCover();         // swap scene while hidden
     if (label) fc.classList.add('closed');
-    await sleep(900);               // hold
+    await sleep(label ? 1500 : 900); // hold — labelled sweeps linger so the message fades fully in AND gets read
     fc.classList.remove('closed');
-    if (label) await sleep(180);
+    if (label) await sleep(500);    // the label's fade-out runs .45s — let it finish BEFORE the clouds part,
+                                    // so no text lingers over the screen being revealed
     fc.classList.add('part');       // clouds part back out
     await sleep(980);
     fc.classList.remove('show','part');
@@ -1669,7 +1880,6 @@ async function welcomeThenStart(){        // Play pressed → clouds reveal the 
   if(busy) return;
   if(runActive){ location.reload(); return; }   // a round is mid-flight (e.g. start screen re-shown over it) — restart clean, never layer a second game loop
   busy=true;
-  // (no title VO exists for the opening cloud sweep — it plays over the music alone)
   showButtons(false); hideBubble(); hideParcel(); hideDog();
   await cloudTransition("", ()=>{
     startScreen.classList.add("hide"); endScreen.classList.add("hide"); gameScreen.classList.remove("hide");
@@ -1690,7 +1900,7 @@ async function welcomeThenStart(){        // Play pressed → clouds reveal the 
 }
 function startGame(){
   runActive=true;                                 // a run is now in flight — Play must reload, not re-enter
-  score=0; round=0;
+  score=0; round=0; routeState=[];                // fresh run → an empty route board
   introSequence();
 }
 
@@ -1708,6 +1918,7 @@ async function nextRound(li){
   round++;
   busy=true; stopLook(); showButtons(false); hideBubble(); hideParcel(); hideDog(); hideHeadPop();
   const prep=()=>{   // scene reset — build this level's map, new colours, Byte back at the start
+    routeHide();                                     // the board hands over under cover of the clouds
     loadLevel(li);
     // pick two distinct house colours (level 1 reuses the colours shown in the intro)
     if(reuseColors){ reuseColors=false; } else { pickColors(); }
@@ -1869,34 +2080,91 @@ async function playLevel(){
   // freshly-dealt house colours (pickColors in nextRound guarantees a new pair) — until it lands.
   // From level 4 on it stays one shot: right or wrong, straight to the next level / end screen.
   if(!correct && levelIdx < RETRY_LEVELS){ busy=false; nextRound(levelIdx); return; }
+  // this level is now behind us either way — log it and show the board.
+  // (a practice retry above returns first: nothing has changed there, so the beat would be a dead stop)
+  routeState[levelIdx] = correct ? "done" : "missed";
+  await showRoute(levelIdx);
   if(levelIdx+1 >= LEVELS.length){ endGame(); busy=false; return; }
   busy=false; nextRound(levelIdx+1);
 }
-let endBtnShown=false;
-function revealEndBtn(){                           // finale: "Byte saved the day" VO plays FIRST, NEXT pops once the line lands
+let endBtnShown=false, endBtnTimer=null, endBtnGuard=null;
+/* Lastscreen.webm cuts scenes at exactly 2.95s and 28s — the two beats the end flow hangs off:
+     0–2.95s   "MISSION ACCOMPLISHED!" banner (its own audio speaks the line)
+     2.95–28s  Byte's dance
+     28–33s    "BYTE SAVED THE DAY" card (its own audio is silent from here) */
+const MISSION_CARD_T=2.8;                          // a beat BEFORE the 2.95 cut, so the pause holds on the banner rather than the dance's first frame
+const END_CARD_T=28;                               // the dance has played out by here and the video's narration goes silent — the closing card lands
+let endVoBreak=false;                              // true while the video is deliberately paused for the "Let's celebrate" line
+function revealEndBtn(delay=0){                    // NEXT stays hidden through the dance — it only pops on the closing card, with its VO
   if(endBtnShown) return; endBtnShown=true;
-  voSay("byte-saved-the-day").then(()=>{ endBtn.classList.add("show"); sfxPop(); });
+  clearTimeout(endBtnTimer);
+  endBtnTimer=setTimeout(()=>{ endBtn.classList.add("show"); sfxPop(); }, delay);
+}
+/* The pause between the banner and the dance: the video freezes on "MISSION ACCOMPLISHED",
+   "Let's celebrate!" plays clean over it, and only then does the dance roll. */
+async function celebrateBreak(){
+  endVoBreak=true;
+  try{ endVideo.pause(); }catch(e){}
+  await voSay("lets-celebrate");                   // resolves on the line's end (or its safety net)
+  endVoBreak=false;
+  if(endScreen.classList.contains("hide")) return; // player already hit NEXT / replayed — don't wake a dead screen
+  try{
+    const p=endVideo.play();
+    if(p&&p.catch) p.catch(()=>revealEndBtn(600)); // couldn't resume → make sure there's still a way forward
+  }catch(e){ revealEndBtn(600); }
 }
 async function endGame(){
   runActive=false;                                // run finished — NEXT may re-enter the classic flow
   stopLook();
-  endBtnShown=false; endBtn.classList.remove("show");   // stays hidden until the video finishes
-  voSay("great-job");                             // lands over the cloud sweep, before the video's own audio takes over
-  await cloudTransition("Well done!", ()=>{     // clouds cover the map, the end screen appears underneath
+  endBtnShown=false; endBtn.classList.remove("show");   // stays hidden until Byte's dance is over and the closing card lands
+  clearTimeout(endBtnTimer); clearTimeout(endBtnGuard);   // a replay must not inherit last run's pending reveal
+  endVoBreak=false;
+  voSay("great-job");                           // owns the cloud sweep — the video (and its audio) waits until the clouds part
+  await cloudTransition("Great job!", ()=>{     // clouds cover the map, the end screen appears underneath — label matches the VO ("Great job")
     gameScreen.classList.add("hide");
     endScreen.classList.remove("hide");
-    stopMusic();                                  // the video takes over — fade the background track out
-    try{
+    routeHide();                                  // the full board was the last thing on screen — clear it behind the clouds
+    stopMusic();                                // the video takes over — fade the background track out
+    try{                                          // rewind WHILE hidden — on a replay the element still holds last run's final frame
       endVideo.loop=false;                        // celebration plays ONCE — never loop back to the start
-      endVideo.onended=()=>{ try{ endVideo.pause(); endVideo.currentTime=Math.max(0, endVideo.duration-0.05); }catch(e){} };  // just hold on the last frame
+      endVideo.onended=()=>{ try{ endVideo.pause(); endVideo.currentTime=Math.max(0, endVideo.duration-0.05); }catch(e){} revealEndBtn(); };  // hold on the last frame; backstop in case the 28s tick was missed
+      // The video drives the two VO beats. ontimeupdate ticks ~4×/s, so each fires once via its own latch.
+      let saidCelebrate=false, saidClosing=false;
+      endVideo.ontimeupdate=()=>{
+        const t=endVideo.currentTime;
+        // "Let's celebrate!" — the banner card has had its say; hold on it for the line, THEN let the dance start
+        // (the upper bound means a seek PAST the banner — e.g. the DEV "END ⏩" jump — skips the break instead of
+        //  stopping the video mid-dance for a line whose moment has gone)
+        if(!saidCelebrate && t>=MISSION_CARD_T){ saidCelebrate=true; if(t<MISSION_CARD_T+2.5) celebrateBreak(); }
+        // closing VO — the video's own narration falls silent at 28s, right as its "BYTE SAVED THE DAY" card lands.
+        // NEXT rides in with that line: the dance is done, so the button can't cut it short.
+        if(!saidClosing && t>=END_CARD_T){ saidClosing=true; voSay("byte-saved-the-day"); revealEndBtn(900); }
+      };
       endVideo.currentTime=0; endVideo.muted=false;
-      const p=endVideo.play();
-      if(p&&p.catch) p.catch(()=>{ endVideo.muted=true; const q=endVideo.play(); if(q&&q.catch) q.catch(()=>{}); });  // audio blocked → at least keep the visuals
     }catch(e){}
   });
+  // clouds have parted — the "Mission Accomplished" opening frame is on screen
   confetti(endScreen);                            // confetti rains down over the revealed end screen
   sfxWin();
-  revealEndBtn();                                 // the last screen has JUST appeared — closing VO now, NEXT pops as the line lands
+  await sleep(450);                               // a breath on the banner before its narration starts — the screens don't pile up
+  try{
+    const p=endVideo.play();
+    if(p&&p.catch) p.catch(()=>{ endVideo.muted=true; const q=endVideo.play(); if(q&&q.catch) q.catch(()=>revealEndBtn(1200)); });  // audio blocked → keep the visuals; can't play at all → don't trap the player behind a dead screen
+  }catch(e){ revealEndBtn(1200); }
+  // NEXT is now driven by the video itself (the 28s card / onended). Backstop: poll for progress and
+  // only step in when playback has genuinely stalled or died — a slow decode must not cut the dance short,
+  // but a dead one must never leave the end screen with no way forward. (A backgrounded tab just waits.)
+  endVideo.onerror=()=>revealEndBtn(600);
+  let lastT=-1;
+  (function guardTick(){
+    endBtnGuard=setTimeout(()=>{
+      if(endBtnShown) return;
+      const t=endVideo.currentTime;
+      if(endVoBreak){ lastT=t; return guardTick(); }                                   // paused on purpose for the VO — not a stall
+      if(endVideo.error || (t===lastT && !document.hidden)) return revealEndBtn(600);   // no progress → stalled
+      lastT=t; guardTick();                                                            // still advancing → let it play out
+    }, 6000);
+  })();
 }
 
 /* ===================== Controls ===================== */
@@ -1979,10 +2247,10 @@ byteWrap.addEventListener("pointerdown", ()=>{
   loadLevel(START_LVL); const sf=feetOf(WP.start); setByte("backParcel", sf.x, sf.y);
 })();
 
-/* The embed bridge (loaded last) needs the real Play button and the end-of-game hooks.
-   Exposed ONLY for the bridge — no debug, cheat or self-play entry points are published. */
-/* `levelIdx` / `runActive` are read-only PROGRESS (which round we're on), not answers —
-   nothing here reveals `target`, so there is no way to shortcut a delivery. */
+/* ---- Flipbook embed hooks ----
+   Publish what the embed bridge needs (plus read-only views of the run state), then announce
+   that boot has finished. The bridge attaches to these and nothing else, so the game keeps
+   working standalone exactly as before. */
 window.__lbd = { playBtn: $("startBtn"), startScreen, endScreen, endVideo, endBtn, VO, bgm,
   get levelIdx(){ return levelIdx; }, get runActive(){ return runActive; },
   get awaitingPick(){ return !!pendingPick; } };

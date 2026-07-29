@@ -798,6 +798,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
     <div class="rotate-phone"></div>
     <div class="rotate-text">Please rotate your device 🔄</div>
   </div>
+
 </div>
 
 <!-- Inline turn-pose SVGs (Byte turned, WITH his vector arm). Inlined so the arm telescopes even
@@ -1046,8 +1047,9 @@ class AudioManager {
         this.voices[k] = new Audio('audios/LBD 1/' + f);
         this.voices[k].volume = 1; this.voices[k].preload = 'auto';
       }
-      // Win-screen VO — lives in audios/ root, outside the LBD 1 pack.
-      this.voices.byteSaved = new Audio('audios/Byte Saved the Day.ogg');
+      // The closing line ships in audios/ (not the LBD 1 VO pack) — it plays over the win splash
+      // and the embed bridge gates the final Next on it finishing.
+      this.voices.byteSaved = new Audio('audios/And just like that, Byte Saved the Day (1).ogg');
       this.voices.byteSaved.volume = 1; this.voices.byteSaved.preload = 'auto';
     }
     if (this.ctx) return;
@@ -1204,7 +1206,6 @@ class AudioManager {
   }
 }
 const audio = new AudioManager();
-window.audio = audio;                    // exposed for the debug level-jump widget
 /* public placeholder API (drives the AudioManager):
    playSound("slide"|"step"|"footstep"|"land"|"arm"|"charge"|"pop"|"cap"|"wrong"|"coin"|"bunny"|"win") */
 function playSound(name){ audio.play(name); }
@@ -2019,7 +2020,6 @@ class GameManager {
 
     // Scene 6 → screen transition into the game (curtain wipe; the intro pods are cleared under
     // it so beginLevel spawns the level fresh as the curtain lifts).
-    // (no "Near and Far" lesson-title VO exists in the pack — the wipe plays silently)
     await this.ui.fieldTransition('', () => {
       this.ui.hideHint();
       this.pods.forEach(p => p.destroy()); this.pods = [];
@@ -2271,7 +2271,7 @@ class GameManager {
   }
 
   restart(){
-    audio.stopVoice();                 // cut the "Byte saved the day" line if NEXT is tapped mid-VO
+    audio.stopVoice();                 // cut any in-flight narration if NEXT is tapped mid-VO
     $('#win').classList.remove('show');
     this.pods.forEach(p => p.destroy()); this.pods = [];
     this.level = 0; this.busy = false; this.canTap = false;
@@ -2290,9 +2290,8 @@ class GameManager {
 window.addEventListener('load', () => {
   audio.init();
   preloadTurnSvgs();                    // process the inlined turn SVGs so the arm can telescope
-  const game = new GameManager();
-  // (the old `window.game` global existed only for the removed debug level-jump widget —
-  // the embed bridge gets what it needs through window.__lbd below)
+  const game = new GameManager();        // deliberately NOT exposed as a global
+                                         // (the embed bridge gets what it needs through window.__lbd below)
   const startScreen = $('#startScreen');
 
   // ---- Portrait gate -------------------------------------------------------------------
@@ -2344,9 +2343,10 @@ window.addEventListener('load', () => {
   };
   playBtn.addEventListener('click', begin);
 
-  // The embed bridge (loaded last, see below) needs these to hook the real Play button
-  // and to know when the intro is on screen. Exposed ONLY for the bridge — no debug or
-  // cheat entry points are published.
+  // ---- Flipbook embed hooks ---------------------------------------------------------------
+  // Publish the handful of objects the embed bridge needs, then announce that the game's boot
+  // has finished. The bridge attaches to these and nothing else, so the game keeps working
+  // standalone exactly as before.
   window.__lbd = { playBtn, startScreen, game, audio };
   window.dispatchEvent(new Event('lbd:boot'));
 });

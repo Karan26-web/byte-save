@@ -974,13 +974,20 @@ function canNavigateForward() {
   return firstPageVideoCompleted && firstPageInteractionCompleted;
 }
 
-/* Which pages hide the Next arrow OUTRIGHT while their gate is shut, rather than
-   showing it greyed out:
+/* A shut gate now hides the Next arrow OUTRIGHT on EVERY page, rather than parking a
+   greyed-out one on the page:
      • the first story page  — the spec's rule;
      • every game page       — completing the game is the only route forward, so a
-                               dead arrow sitting there reads as a way to skip it. */
+                               dead arrow sitting there reads as a way to skip it;
+     • every video page      — the arrow used to sit there ghosted at opacity .22 from
+                               the moment the page landed and then fade up to full over
+                               400ms when the clip ended. The button should ARRIVE when
+                               the video ends, not fade in on a page it was already on.
+   Pages with nothing to satisfy have an open gate from the start, so this never hides an
+   arrow the learner is entitled to — `show` in updateNavControls() only consults this
+   while the gate is actually shut. */
 function nextArrowHiddenWhileLocked(i) {
-  return i === 0 || isLbdPage(i);
+  return true;
 }
 
 /* ---- Navigation (drives the CSS leaf flip) ------------------------------ */
@@ -1045,10 +1052,10 @@ function updateNavControls() {
     cornerPrev.setAttribute("aria-hidden", String(firstStoryPage));
   }
 
-  // NEXT: absent until the gate opens on the first story page and on the game pages
-  // (nextArrowHiddenWhileLocked); present but disabled on the other video pages until
-  // that page's video finishes. Either way a page already cleared once arrives with
-  // the gate open, so paging back shows a live arrow immediately.
+  // NEXT: absent while this page's gate is shut (nextArrowHiddenWhileLocked), so it
+  // ARRIVES the moment the video ends instead of sitting there greyed and fading up.
+  // A page already cleared once arrives with the gate open, so paging back shows a
+  // live arrow immediately.
   if (cornerNext) {
     const gateOpen = firstPageVideoCompleted && firstPageInteractionCompleted;
     const show = !onEnd && (gateOpen || !nextArrowHiddenWhileLocked(flipped));

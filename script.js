@@ -1421,7 +1421,7 @@ let muted = true;
 // game plays this theme itself, louder) — see setLbdFullscreen().
 const bgMusic = new Audio("LBD%201/audios/themeMusic.ogg");
 bgMusic.loop = true;
-bgMusic.volume = 0.20;                      // 20% volume, per request
+bgMusic.volume = 0.10;                      // 10% volume, per request
 // preload="none", NOT "auto": this file is 3.8 MB and with "auto" the browser pulled
 // all of it during boot, competing with the shell assets the Start button waits on —
 // for a track that cannot legally play until the learner taps Play anyway. Stage B

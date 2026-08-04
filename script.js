@@ -1163,7 +1163,10 @@ function resetToStart() {
   bookFloat.classList.remove("rest");          // resume the idle bob
   tapCatcher.style.pointerEvents = "auto";     // Play is tappable again
   hideFlipHint(); clearTimeout(idleHintTimer); clearTimeout(nudgeHideTimer);
-  try { bgMusic.pause(); bgMusic.currentTime = 0; } catch (_) {}   // stop music; restarts on Play
+  // Stop music (restarts on Play) and clear any duck left over from a page video that
+  // was narrating when the book closed, so the next Play starts at the normal level.
+  if (bgFadeTimer) { clearInterval(bgFadeTimer); bgFadeTimer = null; }
+  try { bgMusic.pause(); bgMusic.currentTime = 0; bgMusic.volume = BG_VOL_IDLE; } catch (_) {}
   updateProgress();                            // hides the progress read-out (not opened)
 }
 
@@ -1421,7 +1424,13 @@ let muted = true;
 // game plays this theme itself, louder) — see setLbdFullscreen().
 const bgMusic = new Audio("LBD%201/audios/themeMusic.ogg");
 bgMusic.loop = true;
-bgMusic.volume = 0.10;                      // 10% volume, per request
+// DUCKING: the story pages' voice-over lives in the video's own audio track, and at a
+// flat 10% the music still fought it. So the music sits at 10% only when nothing is
+// narrating, and drops to 3% for as long as a page video is actually playing — the
+// narration stays effortless to follow for a young learner, with the bed still there.
+const BG_VOL_IDLE   = 0.10;                 // 10% — no voice-over on screen
+const BG_VOL_DUCKED = 0.03;                 // 3%  — while a page video narrates
+bgMusic.volume = BG_VOL_IDLE;
 // preload="none", NOT "auto": this file is 3.8 MB and with "auto" the browser pulled
 // all of it during boot, competing with the shell assets the Start button waits on —
 // for a track that cannot legally play until the learner taps Play anyway. Stage B
@@ -1433,6 +1442,31 @@ function playBgMusic() {
     if (p && p.catch) p.catch(function () {});   // ignore autoplay rejections
   } catch (_) {}
 }
+
+/* Fade the music between the two levels over ~250 ms — a hard jump to 3% (and back)
+   is audible as a click in the bed, a slide is not. */
+let bgFadeTimer = null;
+function setBgDuck(on) {
+  const target = on ? BG_VOL_DUCKED : BG_VOL_IDLE;
+  if (bgFadeTimer) { clearInterval(bgFadeTimer); bgFadeTimer = null; }
+  const from = bgMusic.volume, steps = 10;
+  let i = 0;
+  bgFadeTimer = setInterval(function () {
+    i++;
+    const v = from + (target - from) * (i / steps);
+    try { bgMusic.volume = Math.max(0, Math.min(1, v)); } catch (_) {}
+    if (i >= steps) { clearInterval(bgFadeTimer); bgFadeTimer = null; }
+  }, 25);
+}
+/* Media events (play / pause / ended) do NOT bubble, but they DO reach a
+   capture-phase listener on the document — one pair of handlers therefore covers
+   every page video, including the ones built later, with no per-element wiring. */
+function isPageVideo(t) { return t && t.tagName === "VIDEO" && t.classList.contains("page-media"); }
+// A muted play() is either the priming trick or an autoplay fallback with no audible
+// voice-over — neither should touch the music.
+document.addEventListener("play",  function (e) { if (isPageVideo(e.target) && !e.target.muted) setBgDuck(true); }, true);
+document.addEventListener("pause", function (e) { if (isPageVideo(e.target)) setBgDuck(false); }, true);
+document.addEventListener("ended", function (e) { if (isPageVideo(e.target)) setBgDuck(false); }, true);
 
 /* ---- Pause ALL audio when the tab / window goes to the background -----------
    Background music AND the current page's video (its voice-over) must stop the

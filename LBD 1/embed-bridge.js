@@ -24,10 +24,15 @@
   /* ------------------------------------------------------------ inert check */
   if (window.parent === window) return;          // standalone → do nothing at all
 
-  /* The iframe is same-site, so post to the REAL origin rather than "*". On
-     file:// the origin serialises to "null", which is not a valid target — only
-     there do we fall back to the wildcard. */
-  var ORIGIN = (window.location.origin && window.location.origin !== "null")
+  /* The iframe is same-site, so post to the REAL origin rather than "*" — except
+     on file://. There the origin serialises to "file://" (or "null"), but the
+     PARENT document's origin is an opaque unique origin, so a targetOrigin of
+     "file://" never matches it and the browser drops the message SILENTLY — the
+     game then runs boxed inside the page frame because lbd-start never arrives.
+     Only the wildcard delivers on file://, and it is safe here: these messages
+     carry no sensitive data and the parent verifies e.source is this iframe. */
+  var ORIGIN = (window.location.protocol !== "file:" &&
+                window.location.origin && window.location.origin !== "null")
     ? window.location.origin : "*";
 
   function post(type, extra) {
@@ -94,6 +99,18 @@
       startSent = true;
       post("lbd-start");
     }, true);
+    /* BACKSTOP — the click sniffer above is the fast path, but the DEFINITIVE "the
+       game has started" signal is the start screen going away. Post lbd-start from
+       that too (deduped via startSent), so no start path — button, keyboard, or any
+       future flow — can ever leave the game running un-fullscreened inside the page
+       frame. And the guard is per GAME START, not per iframe load: when the start
+       screen comes BACK without a reload (an in-game replay path), re-arm, so the
+       next Play expands the parent again instead of being silently swallowed. */
+    new MutationObserver(function () {
+      var hidden = startScreen.classList.contains("hide");
+      if (hidden && !startSent) { startSent = true; post("lbd-start"); }
+      else if (!hidden && startSent) { startSent = false; }
+    }).observe(startScreen, { attributes: true, attributeFilter: ["class"] });
 
     /* =================================================== COMPLETE handshake ==
        The real success path is GameManager.win() — it reveals #win and plays the

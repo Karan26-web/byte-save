@@ -18,7 +18,13 @@
 
   if (window.parent === window) return;          // standalone → completely inert
 
-  var ORIGIN = (window.location.origin && window.location.origin !== "null")
+  /* Post to the real origin — except on file://, where the parent's origin is an
+     opaque unique origin that a "file://" targetOrigin never matches: the browser
+     would drop every message silently and the game would stay boxed in the page
+     frame. The wildcard is safe here: no sensitive payload, and the parent
+     verifies e.source is this exact iframe. */
+  var ORIGIN = (window.location.protocol !== "file:" &&
+                window.location.origin && window.location.origin !== "null")
     ? window.location.origin : "*";
 
   function post(type, extra) {
@@ -83,6 +89,18 @@
       startSent = true;
       post("lbd-start");
     }, true);
+    /* BACKSTOP — the click sniffer above is the fast path, but the DEFINITIVE "the
+       game has started" signal is the start screen going away. Post lbd-start from
+       that too (deduped via startSent), so no start path — button, keyboard, or any
+       future flow — can ever leave the game running un-fullscreened inside the page
+       frame. And the guard is per GAME START, not per iframe load: when the start
+       screen comes BACK without a reload (an in-game replay path), re-arm, so the
+       next Play expands the parent again instead of being silently swallowed. */
+    new MutationObserver(function () {
+      var hidden = startScreen.classList.contains("hide");
+      if (hidden && !startSent) { startSent = true; post("lbd-start"); }
+      else if (!hidden && startSent) { startSent = false; }
+    }).observe(startScreen, { attributes: true, attributeFilter: ["class"] });
 
     /* =================================================== COMPLETE handshake ==
        This game already gates its finale correctly on its own: endGame() reveals

@@ -328,6 +328,13 @@
   #endBtn{ right:calc(var(--world-x) + var(--world-w)*.03); left:auto; width:fit-content;
     bottom:calc(var(--world-y) + var(--world-h)*.05);
     opacity:0; pointer-events:none; }
+  /* END VIDEO: contain, NOT the .full cover default — the celebration card is 16:9 with the
+     "BYTE SAVED THE DAY" title and bottom art running edge to edge, and cover-cropping it on a
+     wider-than-16:9 desktop window (i.e. any browser once its UI eats height) clipped the title
+     top and the artwork bottom. contain centres the video on the same fitted 16:9 rect the
+     world-anchored NEXT button uses; the dark backdrop makes any letterbox read as a frame. */
+  #endScreen{ background:#0a0f2d; }
+  #endVideo{ object-fit:contain; }
   #endBtn.show{ opacity:1; pointer-events:auto; animation:btnPop .5s cubic-bezier(.2,.8,.3,1); }
 
   #btnOverlay{ position:fixed; left:0; right:0; bottom:0; height:30%; z-index:18; pointer-events:none;
@@ -345,7 +352,11 @@
 
   /* Bouncy kid-friendly PLAY button on the start screen — sits just below the title art */
   #startBtn{
-    position:fixed; left:50%; top:74%; transform:translateX(-50%);   /* on the open road, clear beneath the title block */
+    /* anchored from the BOTTOM, not top:74%: the button is a fixed-max-138px circle, so
+       top-anchoring overflowed the frame bottom on wide-but-short viewports (the flipbook
+       page rect on a laptop) and the button's lower curve got clipped. bottom:5% lands
+       within a few px of the old top:74% spot on tall frames and can never overflow. */
+    position:fixed; left:50%; bottom:5%; transform:translateX(-50%);   /* on the open road, clear beneath the title block */
     width:clamp(96px,17vw,138px); aspect-ratio:1; padding:0; cursor:pointer; z-index:20;
     border:none; background:none; box-shadow:none;
     display:flex; align-items:center; justify-content:center;
@@ -464,7 +475,7 @@
     transition:background .35s ease; }
   .rSlot.done .rNode, .rSlot.missed .rNode{ background:#1f7fd0; }   /* the stop has been visited, however it went */
   .rSlot .rString{ width:calc(var(--u)*.4); height:calc(var(--u)*3.2); background:#cfc7b7; }
-  /* 78% keeps clear air between neighbours at 8 slots (and more, if levels are added) */
+  /* 78% keeps clear air between neighbours at 8 slots (comfortable at the current 6) */
   .rSlot .rBox{ width:min(78%, calc(var(--u)*9.5)); height:auto; display:block;
     opacity:.45; filter:grayscale(1) brightness(1.4) contrast(.7);
     transition:opacity .35s ease, filter .35s ease; }
@@ -514,14 +525,27 @@
   #fieldCurtain .clouds{position:absolute;inset:0;}
   #fieldCurtain .cloud{position:absolute;display:block;   /* aspect-ratio set per cloud asset */
     background-repeat:no-repeat;background-size:100% 100%;will-change:transform;
-    filter:drop-shadow(0 8px 16px rgba(40,90,120,.14));
     transform:translateX(-128vw);
     transition:transform .66s cubic-bezier(.30,1.16,.5,1) var(--din,0s);}
   #fieldCurtain.show .cloud{transform:translateX(0);}
   #fieldCurtain.part .cloud{transform:translateX(-128vw);
     transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--dout,0s);}
-  #fieldCurtain .clouds.back{z-index:1;opacity:.97;filter:saturate(.95) brightness(.98);}
+  #fieldCurtain .clouds.back{z-index:1;opacity:.97;}
   #fieldCurtain .clouds.front{z-index:2;}
+  /* PERF — two costs made the cloud transitions stutter (worst on tablets, visible on
+     high-DPI desktops too):
+     (1) the ~60 curtain clouds each carried a drop-shadow (and the back bank a
+         saturate/brightness pass): filters force each moving, SVG-rastered layer through
+         an offscreen re-raster EVERY frame. The effects were near-invisible against the
+         sky bed, so they are gone on ALL devices — don't reintroduce them.
+     (2) #welcome / #routeScreen ANIMATE backdrop-filter's blur radius (0→14px/12px),
+         which re-blurs the full screen at every intermediate radius. Touch devices jump
+         straight to the final blur while only opacity/tint/visibility animate — same end
+         look, a fraction of the per-frame cost; desktops keep the animated radius. */
+  @media (pointer:coarse){
+    #welcome{transition:opacity .45s ease, background .45s ease, visibility .45s;}
+    #routeScreen{transition:opacity .4s ease, background .4s ease, visibility .4s;}
+  }
   #fieldCurtain .fc-label{position:absolute;left:50%;top:50%;z-index:6;
     transform:translate(-50%,-42%) scale(.8);color:#fff;font-weight:800;text-align:center;
     font-family:"Poppins",system-ui,sans-serif;font-size:clamp(26px,7vw,52px);
@@ -695,7 +719,7 @@ const ANCHOR = {  // foot point inside each sprite [centerX%, bottomY%]
 
 /* ---------------------------------------------------------------
    LEVEL — the whole map as DATA, so every new level is just a new
-   config entry (8 more coming). A level = the empty field (Background.webp)
+   config entry. A level = the empty field (Background.webp)
    + road segments tiled from the road art + house/waypoint geometry.
    All coordinates are Figma px on the 1920x1080 frame unless noted.
    --------------------------------------------------------------- */
@@ -900,76 +924,6 @@ const LEVELS = [
     right: {  // RIGHT of the east branch — art mirrored, its door faces the road
       pos:[74.3,12.5],
       dogOut:{ door:{x:1593,y:364}, gate:{x:1512,y:387}, road:{x:1419,y:410} },
-    },
-  },
-},
-{ /* ---------- LEVEL 6 — a mid-frame road, both ends up to the top edge; the approach climbs
-                 the middle after one LONG low jog from the bottom-left corner ---------- */
-  bg: "Assets/Background.webp",
-  roads: [
-    { kind:"h", y:385,   x1:723,   x2:1516 },  // main road between the two branches
-    { kind:"v", x:723,   y1:-40,   y2:344.5 }, // west branch — up, off the top edge
-    { kind:"v", x:1516,  y1:-40,   y2:344.5 }, // east branch — up, off the top edge
-    { kind:"v", x:1043,  y1:425.5, y2:834.5 }, // stem: main road down to the low corridor
-    { kind:"h", y:875,   x1:412,   x2:1043 },  // low corridor, west to the entry column
-    { kind:"v", x:412,   y1:915.5, y2:1081 },  // entry from the bottom edge
-    { kind:"c", x:723,  y:385, orient:"TR" },
-    { kind:"c", x:1516, y:385, orient:"TL" },
-    { kind:"c", x:1043, y:875, orient:"TL" },
-    { kind:"c", x:412,  y:875, orient:"BR" },
-  ],
-  wp: {
-    start:{fx:412, fy:990},
-    jogA:{fx:412, fy:895},  jogB:{fx:1043, fy:895},  cross:{fx:1043, fy:405},
-    leftHouse:{fx:723, fy:405},   rightHouse:{fx:1516, fy:405},
-    barkL:{fx:860, fy:405},       barkR:{fx:1380, fy:405},
-    exitL:{fx:723, fy:-140},      exitR:{fx:1516, fy:-140},
-  },
-  paths: {
-    approach:["jogA","jogB","cross"],
-    left: { go:["leftHouse"],  bark:["barkL"], exit:["exitL"] },
-    right:{ go:["rightHouse"], bark:["barkR"], exit:["exitR"] },
-  },
-  houses: {
-    left: {   // beside the west branch, level-2 style
-      pos:[20.5,14.3],
-      dogOut:{ door:{x:485, y:384}, gate:{x:533, y:398}, road:{x:635, y:405} },
-    },
-    right: {  // RIGHT of the east branch — mirrored door faces the road
-      pos:[83.6,12.0],
-      dogOut:{ door:{x:1772,y:359}, gate:{x:1691,y:382}, road:{x:1598,y:405} },
-    },
-  },
-},
-{ /* ---------- LEVEL 7 — one low corridor; each end turns UP a long branch to its house near
-                 the top (left house left of the west branch, right house right of the east) ---------- */
-  bg: "Assets/Background.webp",
-  roads: [
-    { kind:"h", y:694,   x1:564,   x2:1162 },  // low corridor (tan y653.5..734.5)
-    { kind:"v", x:564,   y1:-40,   y2:653.5 }, // west branch — long climb, off the top edge
-    { kind:"v", x:1162,  y1:-40,   y2:653.5 }, // east branch — long climb, off the top edge
-    { kind:"v", x:888,   y1:734.5, y2:1081 },  // entry from the bottom edge
-    { kind:"c", x:564,  y:694, orient:"TR" },
-    { kind:"c", x:1162, y:694, orient:"TL" },
-  ],
-  wp: {
-    start:{fx:888, fy:990},  cross:{fx:888, fy:714},
-    cornerL:{fx:564, fy:714},   leftHouse:{fx:564, fy:400},  barkL:{fx:564, fy:520},  exitL:{fx:564, fy:-140},
-    cornerR:{fx:1162, fy:714},  rightHouse:{fx:1162, fy:400}, barkR:{fx:1162, fy:520}, exitR:{fx:1162, fy:-140},
-  },
-  paths: {
-    approach:["cross"],
-    left: { go:["cornerL","leftHouse"],  bark:["cornerL","barkL"],  exit:["exitL"] },
-    right:{ go:["cornerR","rightHouse"], bark:["cornerR","barkR"], exit:["exitR"] },
-  },
-  houses: {
-    left: {   // beside the west branch, level-2 style
-      pos:[12.2,13.8],
-      dogOut:{ door:{x:326, y:379}, gate:{x:374, y:393}, road:{x:476, y:400} },
-    },
-    right: {  // RIGHT of the east branch — mirrored door faces the road
-      pos:[65.2,11.6],
-      dogOut:{ door:{x:1418,y:354}, gate:{x:1337,y:377}, road:{x:1244,y:400} },
     },
   },
 },
@@ -1458,7 +1412,8 @@ async function houseHappy(side){   // the house gives a joyful squash-stretch ho
 }
 
 /* ===================== Config + state ===================== */
-const RETRY_LEVELS=3;   // the first three levels are practice: a missed delivery REPLAYS the level (new colours); from level 4 it's one shot
+/* NO free passes: every level replays on a missed delivery (see the retry branch at the end
+   of playLevel), so there is no practice/one-shot split and no RETRY_LEVELS threshold. */
 let target="left", targetColor="blue", score=0, round=0, busy=false, runActive=false, curSprite="back", lastFootX=0, lastFootY=0;
 /* ?lvl=N in the URL starts play from level N (handy for testing a single level) */
 /* Play always begins at the first level — no URL level-skip. */
@@ -1850,23 +1805,33 @@ function pickColors(){            // choose two distinct house colours and show 
   leftColor=pool[0]; rightColor=pool[1]; closeHouses();
 }
 
-/* ---- background music: the FULL track, looped for the whole game, gently ducked under voice-over ---- */
+/* ---- background music: the FULL track, looped for the whole game, gently ducked under voice-over ----
+   iOS/iPadOS Safari IGNORES writes to HTMLMediaElement.volume, so on tablets the track played
+   at FULL gain and buried every VO line no matter what rampMusic asked for. The level therefore
+   goes through a Web Audio GainNode (wired in ensureAudio()); el.volume stays only as the
+   no-Web-Audio fallback, and musicLevel tracks the value we asked for (bgm.volume can't be
+   trusted as a readback once the gain node owns the level). */
 const MUSIC_VOL = 0.18, MUSIC_DUCK = 0.05;        // clearly hearable; dips under a VO line
 const bgm = new Audio("Audio/BackgroundMusic.ogg");
 bgm.loop = true; bgm.preload = "auto";
-let musicOn=false, musicRamp=null;
+let musicOn=false, musicRamp=null, musicLevel=0, bgmGain=null;
+function setMusicLevel(v){
+  musicLevel=Math.max(0, Math.min(1, v));
+  if(bgmGain){ try{ bgmGain.gain.value=musicLevel; }catch(e){} }
+  else { try{ bgm.volume=musicLevel; }catch(e){} }
+}
 function rampMusic(target, sec){                   // smooth volume glide — never a sudden jump
   if(musicRamp){ clearInterval(musicRamp); musicRamp=null; }
-  const from=bgm.volume, t0=performance.now();
+  const from=musicLevel, t0=performance.now();
   musicRamp=setInterval(()=>{
     const k=Math.min(1,(performance.now()-t0)/(sec*1000));
-    bgm.volume=Math.max(0, Math.min(1, from+(target-from)*k));
+    setMusicLevel(from+(target-from)*k);
     if(k>=1){ clearInterval(musicRamp); musicRamp=null; if(target<=0.005 && !musicOn) bgm.pause(); }
   }, 50);
 }
 function startMusic(){
   if(musicOn) return; musicOn=true;
-  bgm.volume=0.001;
+  setMusicLevel(0.001);
   try{ const p=bgm.play(); if(p&&p.catch) p.catch(()=>{}); }catch(e){}
   rampMusic(MUSIC_VOL, 1.4);                             // gentle fade-in
 }
@@ -1940,8 +1905,9 @@ async function nextRound(li){
    level's choosing flow. Buttons pop under it at every turn.
    - Single-road turns (only one way has road): a wrong pick gets a gentle
      "no road that way" and the question comes back — you can't walk into grass.
-   - The deciding turn (a road each way): ONE SHOT — wrong house means the bark
-     scene and straight on to the next level, as always. */
+   - The deciding turn (a road each way): a wrong house means the bark scene,
+     then the SAME level replays with fresh colours — every parcel must be
+     delivered before the run can move on. */
 let pendingPick=null, autoAnswer=null;
 function awaitPick(){ return new Promise(res=>{ pendingPick=res; showButtons(true); busy=false; startIdleHint(); }); }
 
@@ -2076,13 +2042,14 @@ async function playLevel(){
     await showHouseBadge(wrongBadge, side);        // "Oops! Wrong Delivery! ✗" over the house — no panel text
     await walkPath(P.exit, true);                  // Byte goes on his way, parcel still in hand
   }
-  // PRACTICE levels (the first three): a missed delivery replays the SAME level — same map,
-  // freshly-dealt house colours (pickColors in nextRound guarantees a new pair) — until it lands.
-  // From level 4 on it stays one shot: right or wrong, straight to the next level / end screen.
-  if(!correct && levelIdx < RETRY_LEVELS){ busy=false; nextRound(levelIdx); return; }
-  // this level is now behind us either way — log it and show the board.
-  // (a practice retry above returns first: nothing has changed there, so the beat would be a dead stop)
-  routeState[levelIdx] = correct ? "done" : "missed";
+  // EVERY level must be DELIVERED before the run moves on: a missed delivery replays the
+  // SAME level — same map, freshly-dealt house colours (pickColors in nextRound guarantees
+  // a new pair) — until the parcel lands. The mission can therefore only ever be
+  // accomplished with all parcels delivered; the route board never carries a failed stop.
+  if(!correct){ busy=false; nextRound(levelIdx); return; }
+  // the parcel is delivered — log the level and show the board.
+  // (a retry above returns first: nothing has changed there, so the beat would be a dead stop)
+  routeState[levelIdx] = "done";
   await showRoute(levelIdx);
   if(levelIdx+1 >= LEVELS.length){ endGame(); busy=false; return; }
   busy=false; nextRound(levelIdx+1);
@@ -2168,7 +2135,16 @@ async function endGame(){
 }
 
 /* ===================== Controls ===================== */
-function ensureAudio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); }catch(e){} }
+function ensureAudio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume();
+  // Route the bgm through a GainNode ONCE — this is what makes MUSIC_VOL / MUSIC_DUCK
+  // real on iOS (el.volume is ignored there). The node owns the level from here on, so
+  // the element volume goes to 1 — never both, or desktops would attenuate twice.
+  if(actx && !bgmGain){
+    try{ const s=actx.createMediaElementSource(bgm); bgmGain=actx.createGain();
+      bgmGain.gain.value=musicLevel; s.connect(bgmGain).connect(actx.destination); bgm.volume=1;
+    }catch(e){ bgmGain=null; }
+  }
+}catch(e){} }
 /* best-effort landscape lock for touch devices — works on Android (needs fullscreen first);
    iOS has no lock API, so the #rotateOverlay media query covers it there */
 async function lockLandscape(){

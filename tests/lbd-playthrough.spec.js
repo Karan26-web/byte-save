@@ -1,7 +1,7 @@
 /* PHASE 19 — LBD 2 PLAYED FOR REAL, END TO END.
    ----------------------------------------------------------------------------
    Its own file so `trace: "off"` can be set at top level (Playwright refuses
-   test.use({trace}) inside a describe). This test plays all eight rounds through the
+   test.use({trace}) inside a describe). This test plays all six levels through the
    game's own buttons, so it runs for many minutes; capturing a trace of that much
    media-heavy activity added minutes of teardown on top and pushed the test past its
    budget even though every assertion had already passed.
@@ -35,7 +35,7 @@ async function audioActivity(frame) {
 }
 
 test("LBD 2 plays through its complete flow, waits for its finale, and completes", async ({ page }) => {
-  test.setTimeout(1800000);         // 8 rounds of real play + a 33s celebration video
+  test.setTimeout(1800000);         // 6 levels of real play (with retries on misses) + a 33s celebration video
   const w = H.watch(page);
   await H.openBook(page);
   await H.gotoPage(page, LBD2_PAGE);
@@ -53,10 +53,10 @@ test("LBD 2 plays through its complete flow, waits for its finale, and completes
   expect((await H.state(page)).lbdStarted).toBe(true);
 
   /* PLAY IT FOR REAL. Each round asks left or right; we guess, and if the round did not
-     advance (the first three levels replay a missed delivery) we try the other way next
-     time. Deadline-driven rather than a fixed iteration count: a round takes as long as
-     its walk and delivery animations take, so counting loop passes under-runs the real
-     playthrough. */
+     advance (EVERY level replays a missed delivery until the parcel lands) we try the
+     other way next time. Deadline-driven rather than a fixed iteration count: a round
+     takes as long as its walk and delivery animations take, so counting loop passes
+     under-runs the real playthrough. */
   const readState = () => frame.evaluate(() => ({
     done: !document.getElementById("endScreen").classList.contains("hide"),
     ready: window.__lbd.awaitingPick,

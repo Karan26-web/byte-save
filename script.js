@@ -530,6 +530,31 @@ window.addEventListener("message", function (e) {
   }
 });
 
+/* FULLSCREEN WATCHDOG — the lbd-start message above is the fast path, but a RUNNING
+   game boxed inside the page frame must be impossible even if that one message is
+   ever lost or mistimed (posted mid page-turn while `flipped` still pointed at the
+   old page, swallowed by the bridge's once-per-start guard, etc.). The game iframe
+   is same-origin, so the parent can read the definitive start signal directly: both
+   games hide their #startScreen (class "hide") the moment real play begins. While
+   the learner is on a game page with the overlay up but not fullscreen, poll that
+   signal and expand the moment it's true. Idle cost is one classList read every
+   400ms only while a game page is showing; every other state exits on the guards. */
+setInterval(function () {
+  if (!lbdOverlay || !lbdFrame) return;
+  if (lbdFullscreen || lbdExiting) return;               // already expanded / closing down
+  if (!isLbdPage(flipped)) return;                        // not on a game page
+  if (!lbdOverlay.classList.contains("visible")) return;  // game not shown yet
+  if (lbdFrame.dataset.loaded !== pages[flipped].src) return; // iframe holds another game
+  try {
+    const doc = lbdFrame.contentDocument;
+    const ss = doc && doc.getElementById("startScreen");
+    if (ss && ss.classList.contains("hide")) {            // game is genuinely running
+      lbdStarted = true;
+      setLbdFullscreen(true);
+    }
+  } catch (_) { /* cross-origin deployment → the postMessage path alone applies */ }
+}, 400);
+
 let opened = false;      // has the cover been opened?
 let ready  = false;      // has the cover FINISHED opening? (flips allowed only then)
 let flipped = 0;         // how many leaves are currently turned to the left

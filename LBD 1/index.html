@@ -501,23 +501,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
    to meet, then retreats — each with its OWN --din / --dout delay so they DON'T leave all at once.
    scaleX(-1) on the right bank flips the X direction automatically, so --ox keeps one sign. */
 #fieldCurtain .cloud{position:absolute;height:auto;display:block;will-change:transform;
-  filter:drop-shadow(0 8px 16px rgba(40,90,120,.14));
   transform:translateX(-128vw);
   transition:transform .66s cubic-bezier(.30,1.16,.5,1) var(--din,0s);}   /* drift in, soft settle */
 #fieldCurtain.show .cloud{transform:translateX(0);}                       /* clouds meet in the middle */
 #fieldCurtain.part .cloud{transform:translateX(-128vw);                   /* …then stagger back out */
   transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--dout,0s);}
-#fieldCurtain .clouds.back {z-index:1;opacity:.97;filter:saturate(.95) brightness(.98);}
+#fieldCurtain .clouds.back {z-index:1;opacity:.97;}
 #fieldCurtain .clouds.front{z-index:2;}
-/* TABLET PERF: each of the ~60 curtain clouds carries a drop-shadow, and the whole back
-   bank a saturate/brightness pass. Filters force every one of those big moving layers
-   through an offscreen re-rasterisation EVERY frame — desktop GPUs shrug it off, tablet
-   GPUs drop frames (the reported wipe stutter). Both effects are near-invisible against
-   the sky bed, so touch devices simply skip them; desktops keep the exact original look. */
-@media (pointer:coarse){
-  #fieldCurtain .cloud{filter:none;}
-  #fieldCurtain .clouds.back{filter:none;}
-}
+/* PERF NOTE — the curtain clouds carry NO filters, deliberately. Each of the ~60 clouds
+   used to have a drop-shadow (and the back bank a saturate/brightness pass): filters
+   force every big moving layer through an offscreen re-rasterisation EVERY frame, which
+   stuttered the wipe on tablets and on high-DPI desktops alike. The effects were
+   near-invisible against the sky bed — don't reintroduce them. */
 
 /* The field label — surfaces from inside the clouds: scale-up + float-up + fade once closed */
 #fieldCurtain .fc-label{position:absolute;left:50%;top:50%;z-index:6;

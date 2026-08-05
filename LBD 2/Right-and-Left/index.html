@@ -328,6 +328,13 @@
   #endBtn{ right:calc(var(--world-x) + var(--world-w)*.03); left:auto; width:fit-content;
     bottom:calc(var(--world-y) + var(--world-h)*.05);
     opacity:0; pointer-events:none; }
+  /* END VIDEO: contain, NOT the .full cover default — the celebration card is 16:9 with the
+     "BYTE SAVED THE DAY" title and bottom art running edge to edge, and cover-cropping it on a
+     wider-than-16:9 desktop window (i.e. any browser once its UI eats height) clipped the title
+     top and the artwork bottom. contain centres the video on the same fitted 16:9 rect the
+     world-anchored NEXT button uses; the dark backdrop makes any letterbox read as a frame. */
+  #endScreen{ background:#0a0f2d; }
+  #endVideo{ object-fit:contain; }
   #endBtn.show{ opacity:1; pointer-events:auto; animation:btnPop .5s cubic-bezier(.2,.8,.3,1); }
 
   #btnOverlay{ position:fixed; left:0; right:0; bottom:0; height:30%; z-index:18; pointer-events:none;
@@ -345,7 +352,11 @@
 
   /* Bouncy kid-friendly PLAY button on the start screen — sits just below the title art */
   #startBtn{
-    position:fixed; left:50%; top:74%; transform:translateX(-50%);   /* on the open road, clear beneath the title block */
+    /* anchored from the BOTTOM, not top:74%: the button is a fixed-max-138px circle, so
+       top-anchoring overflowed the frame bottom on wide-but-short viewports (the flipbook
+       page rect on a laptop) and the button's lower curve got clipped. bottom:5% lands
+       within a few px of the old top:74% spot on tall frames and can never overflow. */
+    position:fixed; left:50%; bottom:5%; transform:translateX(-50%);   /* on the open road, clear beneath the title block */
     width:clamp(96px,17vw,138px); aspect-ratio:1; padding:0; cursor:pointer; z-index:20;
     border:none; background:none; box-shadow:none;
     display:flex; align-items:center; justify-content:center;
@@ -522,6 +533,21 @@
     transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--dout,0s);}
   #fieldCurtain .clouds.back{z-index:1;opacity:.97;filter:saturate(.95) brightness(.98);}
   #fieldCurtain .clouds.front{z-index:2;}
+  /* TABLET PERF — the Play-button transition stuttered on tablets, two causes:
+     (1) every one of the ~60 curtain clouds carries a drop-shadow (and the back bank a
+         saturate/brightness pass): filters force each moving, SVG-rastered layer through
+         an offscreen re-raster EVERY frame — fine on desktop GPUs, frame drops on tablets;
+     (2) #welcome / #routeScreen ANIMATE backdrop-filter's blur radius (0→14px/12px),
+         which re-blurs the full screen at every intermediate radius.
+     Touch devices skip the (near-invisible) cloud filters, and the overlays jump straight
+     to their final blur while only opacity/tint/visibility animate — same end look,
+     a fraction of the per-frame cost. Desktops keep the exact original rendering. */
+  @media (pointer:coarse){
+    #fieldCurtain .cloud{filter:none;}
+    #fieldCurtain .clouds.back{filter:none;}
+    #welcome{transition:opacity .45s ease, background .45s ease, visibility .45s;}
+    #routeScreen{transition:opacity .4s ease, background .4s ease, visibility .4s;}
+  }
   #fieldCurtain .fc-label{position:absolute;left:50%;top:50%;z-index:6;
     transform:translate(-50%,-42%) scale(.8);color:#fff;font-weight:800;text-align:center;
     font-family:"Poppins",system-ui,sans-serif;font-size:clamp(26px,7vw,52px);
@@ -1850,23 +1876,33 @@ function pickColors(){            // choose two distinct house colours and show 
   leftColor=pool[0]; rightColor=pool[1]; closeHouses();
 }
 
-/* ---- background music: the FULL track, looped for the whole game, gently ducked under voice-over ---- */
+/* ---- background music: the FULL track, looped for the whole game, gently ducked under voice-over ----
+   iOS/iPadOS Safari IGNORES writes to HTMLMediaElement.volume, so on tablets the track played
+   at FULL gain and buried every VO line no matter what rampMusic asked for. The level therefore
+   goes through a Web Audio GainNode (wired in ensureAudio()); el.volume stays only as the
+   no-Web-Audio fallback, and musicLevel tracks the value we asked for (bgm.volume can't be
+   trusted as a readback once the gain node owns the level). */
 const MUSIC_VOL = 0.18, MUSIC_DUCK = 0.05;        // clearly hearable; dips under a VO line
 const bgm = new Audio("Audio/BackgroundMusic.ogg");
 bgm.loop = true; bgm.preload = "auto";
-let musicOn=false, musicRamp=null;
+let musicOn=false, musicRamp=null, musicLevel=0, bgmGain=null;
+function setMusicLevel(v){
+  musicLevel=Math.max(0, Math.min(1, v));
+  if(bgmGain){ try{ bgmGain.gain.value=musicLevel; }catch(e){} }
+  else { try{ bgm.volume=musicLevel; }catch(e){} }
+}
 function rampMusic(target, sec){                   // smooth volume glide — never a sudden jump
   if(musicRamp){ clearInterval(musicRamp); musicRamp=null; }
-  const from=bgm.volume, t0=performance.now();
+  const from=musicLevel, t0=performance.now();
   musicRamp=setInterval(()=>{
     const k=Math.min(1,(performance.now()-t0)/(sec*1000));
-    bgm.volume=Math.max(0, Math.min(1, from+(target-from)*k));
+    setMusicLevel(from+(target-from)*k);
     if(k>=1){ clearInterval(musicRamp); musicRamp=null; if(target<=0.005 && !musicOn) bgm.pause(); }
   }, 50);
 }
 function startMusic(){
   if(musicOn) return; musicOn=true;
-  bgm.volume=0.001;
+  setMusicLevel(0.001);
   try{ const p=bgm.play(); if(p&&p.catch) p.catch(()=>{}); }catch(e){}
   rampMusic(MUSIC_VOL, 1.4);                             // gentle fade-in
 }
@@ -2168,7 +2204,16 @@ async function endGame(){
 }
 
 /* ===================== Controls ===================== */
-function ensureAudio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); }catch(e){} }
+function ensureAudio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume();
+  // Route the bgm through a GainNode ONCE — this is what makes MUSIC_VOL / MUSIC_DUCK
+  // real on iOS (el.volume is ignored there). The node owns the level from here on, so
+  // the element volume goes to 1 — never both, or desktops would attenuate twice.
+  if(actx && !bgmGain){
+    try{ const s=actx.createMediaElementSource(bgm); bgmGain=actx.createGain();
+      bgmGain.gain.value=musicLevel; s.connect(bgmGain).connect(actx.destination); bgm.volume=1;
+    }catch(e){ bgmGain=null; }
+  }
+}catch(e){} }
 /* best-effort landscape lock for touch devices — works on Android (needs fullscreen first);
    iOS has no lock API, so the #rotateOverlay media query covers it there */
 async function lockLandscape(){

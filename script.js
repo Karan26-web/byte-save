@@ -1166,7 +1166,8 @@ function resetToStart() {
   // Stop music (restarts on Play) and clear any duck left over from a page video that
   // was narrating when the book closed, so the next Play starts at the normal level.
   if (bgFadeTimer) { clearInterval(bgFadeTimer); bgFadeTimer = null; }
-  try { bgMusic.pause(); bgMusic.currentTime = 0; bgMusic.volume = BG_VOL_IDLE; } catch (_) {}
+  try { bgMusic.pause(); bgMusic.currentTime = 0; } catch (_) {}
+  applyBgLevel(BG_VOL_IDLE);
   updateProgress();                            // hides the progress read-out (not opened)
 }
 
@@ -1430,7 +1431,19 @@ bgMusic.loop = true;
 // narration stays effortless to follow for a young learner, with the bed still there.
 const BG_VOL_IDLE   = 0.10;                 // 10% — no voice-over on screen
 const BG_VOL_DUCKED = 0.03;                 // 3%  — while a page video narrates
-bgMusic.volume = BG_VOL_IDLE;
+// iOS/iPadOS Safari IGNORES writes to HTMLMediaElement.volume (the property is
+// effectively read-only there), so on tablets the theme played at FULL gain over the
+// narration no matter what the two constants above said. The level therefore goes
+// through a Web Audio GainNode (wired in initSfx below), which every platform honours;
+// the element's own volume stays as the fallback for the no-Web-Audio path.
+let bgLevel = BG_VOL_IDLE;                  // the level we WANT right now (gain node or el.volume)
+let bgGain = null;                          // GainNode once the Web Audio route is wired
+function applyBgLevel(v) {
+  bgLevel = Math.max(0, Math.min(1, v));
+  if (bgGain) { try { bgGain.gain.value = bgLevel; } catch (_) {} }
+  else { try { bgMusic.volume = bgLevel; } catch (_) {} }
+}
+applyBgLevel(BG_VOL_IDLE);
 // preload="none", NOT "auto": this file is 3.8 MB and with "auto" the browser pulled
 // all of it during boot, competing with the shell assets the Start button waits on —
 // for a track that cannot legally play until the learner taps Play anyway. Stage B
@@ -1449,12 +1462,11 @@ let bgFadeTimer = null;
 function setBgDuck(on) {
   const target = on ? BG_VOL_DUCKED : BG_VOL_IDLE;
   if (bgFadeTimer) { clearInterval(bgFadeTimer); bgFadeTimer = null; }
-  const from = bgMusic.volume, steps = 10;
+  const from = bgLevel, steps = 10;
   let i = 0;
   bgFadeTimer = setInterval(function () {
     i++;
-    const v = from + (target - from) * (i / steps);
-    try { bgMusic.volume = Math.max(0, Math.min(1, v)); } catch (_) {}
+    applyBgLevel(from + (target - from) * (i / steps));
     if (i >= steps) { clearInterval(bgFadeTimer); bgFadeTimer = null; }
   }, 25);
 }
@@ -1467,6 +1479,13 @@ function isPageVideo(t) { return t && t.tagName === "VIDEO" && t.classList.conta
 document.addEventListener("play",  function (e) { if (isPageVideo(e.target) && !e.target.muted) setBgDuck(true); }, true);
 document.addEventListener("pause", function (e) { if (isPageVideo(e.target)) setBgDuck(false); }, true);
 document.addEventListener("ended", function (e) { if (isPageVideo(e.target)) setBgDuck(false); }, true);
+// UNMUTE-WITHOUT-PLAY: when the auto-start's audio was blocked, the video is already
+// PLAYING muted and the tap-to-hear handler only flips `muted` — play() on an already
+// playing element fires no new "play" event, so the duck above never engaged and the
+// music sat at idle level over the narration. muted flips fire "volumechange".
+document.addEventListener("volumechange", function (e) {
+  if (isPageVideo(e.target) && !e.target.paused && !e.target.ended) setBgDuck(!e.target.muted);
+}, true);
 
 /* ---- Pause ALL audio when the tab / window goes to the background -----------
    Background music AND the current page's video (its voice-over) must stop the
@@ -1495,7 +1514,20 @@ function resumeAllAudioFB() {
 document.addEventListener("visibilitychange", function () {
   if (document.hidden) pauseAllAudioFB(); else resumeAllAudioFB();
 });
-window.addEventListener("blur", pauseAllAudioFB);
+/* "blur" alone is NOT "the user left the page": clicking anywhere inside the embedded
+   game's iframe moves focus into that child browsing context, which fires a parent
+   window blur even though the app is still front-most — pausing here made the music
+   cut out on every tap inside the game frame (and resume on a tap outside it).
+   The focus move settles AFTER the blur event, so decide on the next tick:
+   if this document still has focus (the focused element is our iframe — hasFocus()
+   counts embedded content) the reader never left, and the music plays on. A real
+   switch to another window/app leaves hasFocus() false → pause as before. */
+window.addEventListener("blur", function () {
+  setTimeout(function () {
+    if (document.hasFocus() || document.activeElement === lbdFrame) return;
+    pauseAllAudioFB();
+  }, 0);
+});
 window.addEventListener("focus", resumeAllAudioFB);
 window.addEventListener("pagehide", pauseAllAudioFB);
 
@@ -1524,8 +1556,21 @@ coverFlipSound.volume = 0.35;
 (function initSfx() {
   const AC = window.AudioContext || window.webkitAudioContext;
   const DATA = window.SFX_DATA || {};
-  if (!AC || !DATA.cover) return;           // no Web Audio / no inlined data → fallback
+  if (!AC) return;                          // no Web Audio at all → <audio> fallbacks
   try { audioCtx = new AC(); } catch (_) { audioCtx = null; return; }
+  // BACKGROUND-MUSIC GAIN — the ctx is created even if the inlined SFX data is
+  // missing, because this route is what makes the idle/duck levels real on iOS
+  // (see the bgLevel note above). Once the element is wired through the graph the
+  // gain node OWNS the level, so the element volume must sit at 1 (never both —
+  // that would double-attenuate on platforms where el.volume works).
+  try {
+    const bgSrc = audioCtx.createMediaElementSource(bgMusic);
+    bgGain = audioCtx.createGain();
+    bgGain.gain.value = bgLevel;
+    bgSrc.connect(bgGain).connect(audioCtx.destination);
+    bgMusic.volume = 1;
+  } catch (_) { bgGain = null; }
+  if (!DATA.cover) return;                  // no inlined SFX data → <audio> fallback for one-shots
   function decode(name, uri) {
     fetch(uri).then(function (r) { return r.arrayBuffer(); })
       .then(function (a) { return audioCtx.decodeAudioData(a); })

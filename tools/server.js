@@ -110,6 +110,17 @@ const server = http.createServer(async (req, res) => {
   }
   if (urlPath.endsWith("/")) urlPath += "index.html";
 
+  /* Identity probe — which checkout is this server actually serving? Two clones side by
+     side (byte-save / byte-save-1) both default to port 8080, and Playwright's
+     reuseExistingServer adopts whichever got there first, so a whole suite can run
+     green against a stale tree. tests/global-setup.js reads this before any test runs.
+     Dev-only, like the rest of this file; never part of the deployed payload. */
+  if (urlPath === "/__server-root") {
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+       .end(JSON.stringify({ root: ROOT }));
+    return;
+  }
+
   const filePath = await resolveCaseSensitive(urlPath);
   if (!filePath) {
     res.writeHead(404, { "Content-Type": "text/plain" }).end("404 Not Found: " + urlPath);

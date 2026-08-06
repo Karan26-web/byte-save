@@ -748,6 +748,17 @@ function refreshMedia() {
     // has ALREADY cleared once stays cleared (see clearedPages) — going back must not
     // make them sit through the whole video again.
     armForwardGate(idx);
+    // ARRIVAL RESET — every video page starts from 0:00 when navigated to. Without
+    // this, a page left mid-clip (Next pressed early, then Back — or any revisit)
+    // kept its paused timestamp and RESUMED there: picture mid-scene, voiceover
+    // mid-sentence. Rewind exactly once per arrival — this block runs only when
+    // `flipped` changes — so the flip-end "idempotent safety net" call can never
+    // restart a clip that is already playing on this page. The forward gate is
+    // untouched: a cleared page stays cleared (armForwardGate above), so the
+    // learner is never made to sit through the whole clip again to move on.
+    const arrivedLeaf = leaves[idx];
+    const arrivedVid = arrivedLeaf && arrivedLeaf.querySelector("video.page-media");
+    if (arrivedVid) { try { if (arrivedVid.currentTime > 0) arrivedVid.currentTime = 0; } catch (_) {} }
   }
   // Left the page a delayed video was counting down on? Cancel that countdown.
   if (mediaDelayTimer && mediaDelayIdx !== idx) {

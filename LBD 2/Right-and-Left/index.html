@@ -546,6 +546,15 @@
     #welcome{transition:opacity .45s ease, background .45s ease, visibility .45s;}
     #routeScreen{transition:opacity .4s ease, background .4s ease, visibility .4s;}
   }
+  /* FIRST-SWEEP WARM-UP — SVG background-images rasterize at element size on their FIRST
+     paint, so the very first curtain used to do ~60 cloud rasters at device DPI in the same
+     frames it was animating: on tablets the sweep froze and only the curtain's flat sky bed
+     showed (a solid blue flash) until the rasters landed. .warm paints the fully-closed
+     curtain for two frames at near-invisible opacity while the learner is still on the start
+     screen, so every cloud's raster is already cached when Play starts the real sweep.
+     (Declared AFTER .show, so cloudTransition strips .warm before adding .show — see JS.) */
+  #fieldCurtain.warm{opacity:.001;visibility:visible;transition:none;}
+  #fieldCurtain.warm .cloud{transform:translateX(0);transition:none;}
   #fieldCurtain .fc-label{position:absolute;left:50%;top:50%;z-index:6;
     transform:translate(-50%,-42%) scale(.8);color:#fff;font-weight:800;text-align:center;
     font-family:"Poppins",system-ui,sans-serif;font-size:clamp(26px,7vw,52px);
@@ -1735,7 +1744,12 @@ function confetti(parent){
   const CLOUD_N = 10;
   const CLOUD_AR = [2.728,2.081,1.996,1.854,1.619,1.467,2.225,2.689,2.231,1.986];
   const cloudSrc = v => 'Assets/Clouds/cloud'+(v%CLOUD_N)+'.svg';
-  for(let i=0;i<CLOUD_N;i++){ const im=new Image(); im.src=cloudSrc(i); }   // preload so the first curtain is complete
+  /* preload AND decode so the first curtain is complete — decode() parses each SVG off the
+     critical path (kept alive in cloudImgs so the cache can't evict them); the raster at true
+     on-screen size is then cached by the .warm pass below */
+  const cloudImgs=[];
+  for(let i=0;i<CLOUD_N;i++){ const im=new Image(); im.src=cloudSrc(i);
+    if(im.decode){ im.decode().catch(()=>{}); } cloudImgs.push(im); }
   const BACK = [
     [5,64,'t',-8,2],[9,58,'t',16,-8],[6,70,'t',37,-6],[1,52,'t',58,-8],
     [3,42,'t',78,0],[8,50,'t',28,34],[4,26,'t',7,36],[2,44,'t',45,14],
@@ -1767,6 +1781,7 @@ function confetti(parent){
   fill(fc.querySelector('.cb-right .front'), FRONT, D_RF);
 
   window.cloudTransition = async function(label, onCover){
+    fc.classList.remove('warm');    // never let a pending warm frame (opacity .001) mask a real sweep
     fc.querySelector('.fc-label').textContent = label || '';
     fc.classList.remove('part','closed');
     fc.classList.add('show');       // clouds drift in
@@ -1853,7 +1868,11 @@ async function welcomeThenStart(){        // Play pressed → clouds reveal the 
     loadLevel(START_LVL);                         // (re)build the first level's map — replay starts over
     pickColors();                                 // set up the level-1 houses
     setByte("backParcel", feetOf(WP.start).x, FRAME.H+260);   // Byte waits just below the bottom of the frame
-    welcomeEl.classList.add("show");              // the map is revealed already blurred (title still hidden)
+    // The map is revealed already blurred (title still hidden). Deferred one frame: the 14px
+    // full-screen backdrop blur is its own expensive paint, and stacked onto the same frame as
+    // the screen swap it pushed tablets over budget mid-sweep. The clouds hold cover for
+    // ~900ms after this callback, so the blur still lands long before anything is visible.
+    requestAnimationFrame(()=>welcomeEl.classList.add("show"));
   });
   welcomeEl.classList.add("lines");               // clouds have parted — NOW the two title lines pop in, one after the other
   voSay("help-byte").then(()=>voSay("deliver-the-parcels"));   // voiced in step with the two lines
@@ -2203,6 +2222,10 @@ byteWrap.addEventListener("pointerdown", ()=>{
   const btn=$("startBtn");
   const imgs=["Assets/Background.webp","Assets/UI/start-screen.webp",
     "Assets/Byte/stand-back-parcel.webp","Assets/Byte/walk-up-parcel.webp","Assets/Byte/walk-side-parcel.webp",
+    /* the road tiles paint as DIV background-images inside the hidden gameScreen, so nothing
+       fetches them until Play un-hides it — on a cold cache they used to pop in AFTER the
+       clouds parted (bare grass, then roads). Decode them behind the gate like the map. */
+    "Assets/Roads/straight.webp","Assets/Roads/bend.webp","Assets/Parcel.webp",
     ...Object.keys(COLOR_NAME).flatMap(c=>["","open"].map(v=>houseFile(c,v)))];
   const auds=[bgm, VO["help-byte"], VO["deliver-the-parcels"],
     VO["deliver-red"], VO["deliver-blue"], VO["deliver-yellow"]];
@@ -2221,6 +2244,37 @@ byteWrap.addEventListener("pointerdown", ()=>{
 /* initial placement — build the level map (field + tiled roads + house geometry), then park Byte */
 (function(){
   loadLevel(START_LVL); const sf=feetOf(WP.start); setByte("backParcel", sf.x, sf.y);
+})();
+
+/* FIRST-SWEEP WARM-UP — paint the assembled cloud curtain once, invisibly, while the learner
+   is still on the start screen (see the #fieldCurtain.warm CSS note: SVG backgrounds raster at
+   element size on first paint, and doing ~60 of those at tablet DPI inside the Play sweep was
+   the freeze-then-blue-flash). Runs at idle, once, and only if a real sweep hasn't started —
+   a real sweep IS the warm-up if it gets there first. */
+(function warmFirstSweep(){
+  const fc=document.getElementById("fieldCurtain");
+  let done=false;
+  const warm=()=>{
+    if(done) return; done=true;
+    if(fc.classList.contains("show") || busy || runActive) return;   // a real sweep beat us to it
+    fc.classList.add("warm");
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      fc.classList.remove("warm");
+      /* Same trick for the PLAYSCREEN: it boots display:none, so its first-ever raster
+         (full-frame map + roads + houses at device DPI) used to land inside the Play
+         sweep's cover frame. Paint it once here instead — it sits UNDER the opaque
+         start screen, and opacity .001 keeps it invisible against any gap. */
+      if(busy || runActive || startScreen.classList.contains("hide")) return;
+      gameScreen.style.opacity=".001";
+      gameScreen.classList.remove("hide");
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        gameScreen.classList.add("hide");
+        gameScreen.style.opacity="";
+      }));
+    }));
+  };
+  if("requestIdleCallback" in window) requestIdleCallback(warm,{timeout:2500});
+  else setTimeout(warm,1200);
 })();
 
 /* ---- Flipbook embed hooks ----

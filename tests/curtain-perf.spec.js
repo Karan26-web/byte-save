@@ -137,37 +137,38 @@ test.describe("LBD 2 welcome/route blur", () => {
 
 test.describe("LBD 2 first-sweep warm-up", () => {
   test("curtain pre-paints invisibly on the start screen, then fully retracts", async ({ page }) => {
-    // Watch for the two-frame .warm pass from before any script runs — it's gone again
-    // within ~32ms, far too fast to poll for after the fact.
+    // The .warm pass lasts exactly two frames and is gone within ~32ms, so it cannot be
+    // polled for after the fact — sample every frame from before any page script runs.
+    // (A MutationObserver is the obvious tool and does NOT work here: init scripts run
+    // before the parser creates documentElement, so observe() has no node to watch.)
     await page.addInitScript(() => {
-      window.__warm = { seen: false, maxOpacity: 0 };
-      new MutationObserver(() => {
+      window.__warm = { seen: false, maxOpacity: 0, clouds: 0 };
+      const sample = () => {
         const fc = document.getElementById("fieldCurtain");
         if (fc && fc.classList.contains("warm")) {
           window.__warm.seen = true;
+          window.__warm.clouds = fc.querySelectorAll(".cloud").length;
           window.__warm.maxOpacity = Math.max(
             window.__warm.maxOpacity,
             parseFloat(getComputedStyle(fc).opacity) || 0
           );
         }
-      }).observe(document.documentElement, {
-        subtree: true, attributes: true, attributeFilter: ["class"],
-      });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
     });
     await page.goto("/LBD%202/Right-and-Left/index.html");
     await page.waitForFunction(() => window.__warm.seen, null, { timeout: 10000 });
-    const after = await page.evaluate(() => {
-      const fc = document.getElementById("fieldCurtain");
-      return {
-        maxOpacity: window.__warm.maxOpacity,
-        residue: fc.classList.contains("warm"),
-        visible: getComputedStyle(fc).visibility === "visible",
-      };
-    });
-    expect(after.maxOpacity).toBeLessThan(0.01);     // the learner must never see the warm pass
+    const seen = await page.evaluate(() => window.__warm);
+    // The point of the warm pass is rasterising the real clouds — an empty curtain would
+    // "warm" nothing, so assert it had the full set to paint.
+    expect(seen.clouds).toBeGreaterThan(20);
+    expect(seen.maxOpacity).toBeLessThan(0.01);      // the learner must never see the warm pass
     await expect
       .poll(async () => page.evaluate(() =>
         document.getElementById("fieldCurtain").classList.contains("warm")))
       .toBe(false);                                  // …and it must fully strip itself
+    // The start screen must still be the visible one: warming may not leak the playscreen.
+    await expect(page.locator("#startScreen")).not.toHaveClass(/hide/);
   });
 });

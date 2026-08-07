@@ -538,11 +538,17 @@
      defeated this transition's own intent: the clouds are supposed to reveal the playscreen
      blurred under the title art. Dropping the bed as the clouds start to leave fixes both.
      Safe by construction — .part is only ever added AFTER onCover() has swapped the scene,
-     and the clouds still cover ~99% of the frame at that instant, so the bed is hidden
-     while it fades. Deliberately NOT on the base rule: when .part is removed the bed must
-     snap back to opaque instantly, ready for the next sweep's drift-in. */
-  #fieldCurtain.part{background-color:transparent;
-    transition:opacity .2s ease, visibility .2s, background-color .3s ease;}
+     and the clouds still cover ~99.8% of the frame at that instant, so the bed is hidden as
+     it goes. Deliberately NOT on the base rule: when .part is removed the bed must be opaque
+     again instantly, ready for the next sweep's drift-in.
+
+     The bed is DROPPED INSTANTLY, never faded. background-color is a paint property: putting
+     it in a transition re-rasterises this full-viewport layer on every frame of the fade.
+     Measured across the part phase, a .3s fade cost 434 RasterTasks against 241 for an
+     instant drop — 80% more raster work in exactly the frames the clouds are sliding, which
+     reads as stutter on a tablet GPU while looking fine on desktop. An instant drop costs the
+     same as never touching the bed at all (241 vs 242). Do NOT add a transition here. */
+  #fieldCurtain.part{background-color:transparent;}
   #fieldCurtain .clouds.back{z-index:1;opacity:.97;}
   #fieldCurtain .clouds.front{z-index:2;}
   /* PERF — two costs made the cloud transitions stutter (worst on tablets, visible on

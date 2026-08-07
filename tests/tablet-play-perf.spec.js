@@ -152,6 +152,39 @@ test("tablet: the clouds part onto the level, never onto a flat blue screen", as
   expect(parting.level, `level should be revealed as the clouds part — ${JSON.stringify(parting)}`).toBeGreaterThan(20);
 });
 
+test("tablet: the parting curtain animates nothing that forces a repaint", async ({ page }) => {
+  /* Learned by shipping the mistake: dropping the sky bed with a .3s background-color fade
+     removed the blue frame but re-rasterised this full-viewport layer every frame — 434
+     RasterTasks across the part phase against 241 for an instant drop. Invisible on desktop,
+     stutter on a tablet GPU, and it read as "the cloud transition is lagging again".
+     transform and opacity are compositor-only and fine; background/background-color, filter,
+     width/height/top/left are not. Applies to both games. */
+  const PAINTY = /\b(background|background-color|box-shadow|filter|width|height|top|left|border-radius)\b/;
+  for (const url of ["/LBD%202/Right-and-Left/index.html", "/LBD%201/index.html"]) {
+    await page.goto(url);
+    await page.waitForSelector("#fieldCurtain .cloud", { state: "attached" });
+    const props = await page.evaluate(() => {
+      const fc = document.getElementById("fieldCurtain");
+      fc.classList.add("show", "part");                 // the parting state, measured directly
+      const read = (el) => getComputedStyle(el).transitionProperty;
+      const out = {
+        curtain: read(fc),
+        sheets: [...document.querySelectorAll("#fieldCurtain .clouds")].map(read),
+        clouds: [...document.querySelectorAll("#fieldCurtain .cloud")].slice(0, 4).map(read),
+      };
+      fc.classList.remove("show", "part");
+      return out;
+    });
+    expect(props.curtain, `${url} curtain transitions a paint property: ${props.curtain}`).not.toMatch(PAINTY);
+    for (const p of props.sheets) {
+      expect(p, `${url} cloud sheet transitions a paint property: ${p}`).not.toMatch(PAINTY);
+    }
+    for (const p of props.clouds) {
+      expect(p, `${url} cloud transitions a paint property: ${p}`).not.toMatch(PAINTY);
+    }
+  }
+});
+
 test("tablet: curtain uses the 4-sheet LOD, not 60 composited cloud layers", async ({ page }) => {
   /* On coarse pointers the four .clouds containers are the animated layers and the
      individual clouds are plain paint inside them. 60 will-change clouds = ~94MB of

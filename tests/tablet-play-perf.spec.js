@@ -152,6 +152,69 @@ test("tablet: the clouds part onto the level, never onto a flat blue screen", as
   expect(parting.level, `level should be revealed as the clouds part — ${JSON.stringify(parting)}`).toBeGreaterThan(20);
 });
 
+test("tablet: tearing the curtain down does not flash the sky bed back on", async ({ page }, testInfo) => {
+  /* The LAST blue frame, and the one the part-phase test above cannot see. cloudTransition
+     ends with `classList.remove('show','part')`. While the bed lived on the base rule and
+     `.part{background-color:transparent}` merely overrode it, that single call put the bed
+     back to opaque IN THE SAME TICK — but opacity still had its .2s fade to run, so the
+     curtain spent those 200ms as a full-screen flat-blue veil over a level that was already
+     fully revealed. Filmed at 40ms: +2473ms level 68.8% green, +2875ms one uniform blue frame
+     (avg rgb 114,180,214, zero colour variance), +3074ms level back.
+
+     Driven directly rather than through Play: the teardown fade is a 200ms window and racing
+     a screenshot into it from the real flow is flaky, while add show -> add part -> remove
+     both reproduces the exact class sequence cloudTransition performs.
+
+     LBD 1 is deliberately not covered — it keeps an opaque bed for its whole sweep by design
+     (no .part override at all), so this invariant is Byte's Delivery Mission's alone. */
+  test.setTimeout(120000);
+  await page.goto("/LBD%202/Right-and-Left/index.html");
+  await page.waitForSelector("#startBtn");
+  await page.locator("#startBtn").click({ force: true });
+  /* Wait out the whole opening beat — sweep, welcome title, un-blur — so the crop sees the
+     bare level. Shooting while #welcome is still up put its tinted blur and title art over
+     the crop and the liveness check read 4% grass on the short landscape viewport. */
+  await page.waitForFunction(() => {
+    const fc = document.getElementById("fieldCurtain");
+    return !fc.classList.contains("show") && getComputedStyle(fc).opacity === "0"
+        && !document.getElementById("welcome").classList.contains("show");
+  }, null, { timeout: 40000 });
+
+  /* Take the curtain away from the game before driving it by hand. Once the welcome clears,
+     introSequence runs and nextRound() fires its OWN labelled cloudTransition, which re-adds
+     show/closed underneath this test — it passed in isolation and failed inside the full
+     suite, purely on where that sweep landed. Stubbing the transition (still invoking
+     onCover, so the game keeps progressing normally) leaves #fieldCurtain ours alone. */
+  await page.evaluate(() => { window.cloudTransition = async (label, onCover) => { if (onCover) onCover(); }; });
+
+  // centre crop sized off the real viewport — the shared CLIP overhangs the 844x390 project
+  const vp = page.viewportSize();
+  const clip = { x: Math.round(vp.width * 0.3), y: Math.round(vp.height * 0.3),
+                 width: Math.round(vp.width * 0.4), height: Math.round(vp.height * 0.4) };
+
+  const fc = page.locator("#fieldCurtain");
+  await fc.evaluate((el) => el.classList.add("show"));
+  await page.waitForTimeout(1100);                    // clouds drift in and cover
+  await fc.evaluate((el) => el.classList.add("part"));
+  await page.waitForTimeout(1100);                    // clouds clear the frame, curtain still up
+  const beforeShot = `${testInfo.outputPath()}/pre-teardown.png`;
+  await page.screenshot({ path: beforeShot, clip });
+  await fc.evaluate((el) => el.classList.remove("show", "part"));   // <- the teardown under test
+  const afterShot = `${testInfo.outputPath()}/teardown.png`;
+  await page.screenshot({ path: afterShot, clip });    // lands inside the .2s fade
+
+  const before = await frameMakeup(page, beforeShot);
+  const after = await frameMakeup(page, afterShot);
+
+  console.log(`pre-teardown: ${JSON.stringify(before)}   teardown: ${JSON.stringify(after)}`);
+  // the crop must be showing the level, or neither frame proves anything
+  expect(before.level, `crop never saw the level — ${JSON.stringify(before)}`).toBeGreaterThan(20);
+  expect(after.sky, `sky bed flashed back on as the curtain tore down — ${JSON.stringify(after)}`).toBeLessThan(5);
+  // the invariant in one line: dropping the classes must change nothing on screen
+  expect(Math.abs(after.level - before.level),
+    `teardown changed the frame — before ${JSON.stringify(before)} after ${JSON.stringify(after)}`).toBeLessThan(10);
+});
+
 test("tablet: the parting curtain animates nothing that forces a repaint", async ({ page }) => {
   /* Learned by shipping the mistake: dropping the sky bed with a .3s background-color fade
      removed the blue frame but re-rasterised this full-viewport layer every frame — 434

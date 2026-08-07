@@ -555,6 +555,34 @@
      (Declared AFTER .show, so cloudTransition strips .warm before adding .show — see JS.) */
   #fieldCurtain.warm{opacity:.001;visibility:visible;transition:none;}
   #fieldCurtain.warm .cloud{transform:translateX(0);transition:none;}
+  /* CURTAIN LOD FOR TABLETS — the desktop curtain is 60 individually-animated cloud layers:
+     ~94MB of composited textures at 2x DPR and ~7x the viewport painted every frame. Desktop
+     GPUs shrug; the budget mobile GPUs in real tablets (shared memory, limited fill-rate)
+     stutter on exactly this, and it is invisible to CPU-throttled profiling — which is how
+     it survived the filter fix. On coarse pointers the FOUR .clouds containers slide as
+     sheets instead (back leads, front follows, so the depth parallax survives): same art,
+     same closed-state geometry, 4 composited layers instead of 60 and about half the texture
+     memory. Do not "restore" per-cloud motion on tablets without measuring on real hardware. */
+  @media (pointer:coarse){
+    #fieldCurtain .cloud,
+    #fieldCurtain.show .cloud, #fieldCurtain.part .cloud, #fieldCurtain.warm .cloud{
+      transform:none;transition:none;will-change:auto;}
+    #fieldCurtain .clouds{will-change:transform;
+      transition:transform .66s cubic-bezier(.30,1.16,.5,1) var(--bin,0s);}
+    #fieldCurtain .clouds.back{--bin:.04s;--bout:.15s;}   /* back leads in, lingers out */
+    #fieldCurtain .clouds.front{--bin:.12s;--bout:0s;}    /* front settles late, parts first */
+    #fieldCurtain .cb-left .clouds{transform:translateX(-128vw);}
+    #fieldCurtain .cb-right .clouds{transform:scaleX(-1) translateX(-128vw);} /* keep the mirror */
+    #fieldCurtain.show .cb-left .clouds{transform:translateX(0);}
+    #fieldCurtain.show .cb-right .clouds{transform:scaleX(-1);}
+    #fieldCurtain.part .cb-left .clouds{transform:translateX(-128vw);
+      transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--bout,0s);}
+    #fieldCurtain.part .cb-right .clouds{transform:scaleX(-1) translateX(-128vw);
+      transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--bout,0s);}
+    /* warm pass paints the CLOSED banks, so the 4 sheet rasters are cached before Play */
+    #fieldCurtain.warm .cb-left .clouds{transform:translateX(0);transition:none;}
+    #fieldCurtain.warm .cb-right .clouds{transform:scaleX(-1);transition:none;}
+  }
   #fieldCurtain .fc-label{position:absolute;left:50%;top:50%;z-index:6;
     transform:translate(-50%,-42%) scale(.8);color:#fff;font-weight:800;text-align:center;
     font-family:"Poppins",system-ui,sans-serif;font-size:clamp(26px,7vw,52px);

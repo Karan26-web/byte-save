@@ -75,6 +75,28 @@ function assertSmooth(r, label) {
   expect(r.fps, `${label}: mean fps — ${JSON.stringify(r)}`).toBeGreaterThan(30);
 }
 
+test("tablet: curtain uses the 4-sheet LOD, not 60 composited cloud layers", async ({ page }) => {
+  /* On coarse pointers the four .clouds containers are the animated layers and the
+     individual clouds are plain paint inside them. 60 will-change clouds = ~94MB of
+     GPU textures and ~7x viewport overdraw at 2x DPR — smooth on desktop GPUs and in
+     CPU-throttled profiling, a stutter on real tablet GPUs. See the CURTAIN LOD note
+     in each game's CSS before changing this. */
+  for (const url of ["/LBD%202/Right-and-Left/index.html", "/LBD%201/index.html"]) {
+    await page.goto(url);
+    await page.waitForSelector("#fieldCurtain .cloud", { state: "attached" });
+    const layers = await page.evaluate(() => ({
+      coarse: matchMedia("(pointer:coarse)").matches,
+      sheets: [...document.querySelectorAll("#fieldCurtain .clouds")]
+        .filter((el) => getComputedStyle(el).willChange === "transform").length,
+      cloudLayers: [...document.querySelectorAll("#fieldCurtain .cloud")]
+        .filter((el) => getComputedStyle(el).willChange === "transform").length,
+    }));
+    expect(layers.coarse, url + " must be a coarse-pointer profile").toBe(true);
+    expect(layers.sheets, url + " animated cloud sheets").toBe(4);
+    expect(layers.cloudLayers, url + " per-cloud composited layers").toBe(0);
+  }
+});
+
 test("tablet: tapping Play in the flipbook transitions smoothly into the level", async ({ page }) => {
   test.setTimeout(300000);
 

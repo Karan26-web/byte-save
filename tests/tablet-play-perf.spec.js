@@ -75,6 +75,83 @@ function assertSmooth(r, label) {
   expect(r.fps, `${label}: mean fps — ${JSON.stringify(r)}`).toBeGreaterThan(30);
 }
 
+/* Centre crop used for the curtain frames — small enough to capture and analyse inside the
+   transition's own timing, large enough to be representative (both the sky bed and the level
+   are broad flat regions here). */
+const CLIP = { x: 390, y: 305, width: 300, height: 200 };
+
+/* Classify a PNG by what the learner would actually see in it: how much is the curtain's
+   flat sky bed (#71B6E3) and how much is the level's grass. Done in a blank page so the
+   game document is never touched by the measurement. */
+async function frameMakeup(page, pngPath) {
+  const fs = require("fs");
+  const probe = await page.context().newPage();
+  const out = await probe.evaluate(async (b64) => {
+    const im = await new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.src = "data:image/png;base64," + b64; });
+    const c = document.createElement("canvas"); c.width = im.width; c.height = im.height;
+    const x = c.getContext("2d"); x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, im.width, im.height).data;
+    let sky = 0, green = 0; const n = d.length / 4;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (Math.abs(r - 113) < 14 && Math.abs(g - 182) < 14 && Math.abs(b - 227) < 14) sky++;
+      else if (g > 90 && g > r + 25 && g > b + 25) green++;
+    }
+    return { sky: +(100 * sky / n).toFixed(1), level: +(100 * green / n).toFixed(1) };
+  }, fs.readFileSync(pngPath).toString("base64"));
+  await probe.close();
+  return out;
+}
+
+test("tablet: the clouds part onto the level, never onto a flat blue screen", async ({ page }, testInfo) => {
+  /* The curtain is an OPAQUE sky-blue bed with clouds on top. While it is closed that bed is
+     load-bearing — it hides the scene swap. But if it stays opaque while the clouds LEAVE,
+     they uncover the bed instead of the level: a dead flat-blue frame, measured at 100% of
+     the viewport from +750ms to +1150ms, which testers reported as "the blue screen after
+     the cloud transition". This pins BOTH directions — the bed must be gone when the clouds
+     part, and still hiding the level while they are closed. */
+  test.setTimeout(180000);
+  const dir = testInfo.outputPath();
+  await page.goto("/LBD%202/Right-and-Left/index.html");
+  await page.waitForSelector("#startBtn");
+  await page.locator("#startBtn").click({ force: true });
+
+  // While CLOSED: the level must be completely hidden (this is what the bed is for).
+  await page.waitForFunction(() => {
+    const c = document.getElementById("fieldCurtain").classList;
+    return c.contains("show") && !c.contains("part");
+  }, null, { timeout: 15000 });
+  await page.waitForTimeout(1000);
+  const closedShot = `${dir}/closed.png`;
+  await page.screenshot({ path: closedShot, clip: CLIP });
+
+  /* Timing discipline, learned the hard way — an earlier version of this test passed with the
+     bug deliberately reinstated. Two rules keep the frames meaningful:
+       - Grab a small centre CROP, not the whole 2160x1620 screen. A full-res capture plus a
+         3.5M-pixel walk costs enough that the ~2.8s transition finishes underneath you, and
+         you end up photographing the settled level no matter what the curtain did.
+       - Analyse only AFTER both frames are captured, and confirm the curtain is still up
+         BEFORE the shutter, not after. */
+  await page.waitForFunction(() => document.getElementById("fieldCurtain").classList.contains("part"), null, { timeout: 15000 });
+  await page.waitForTimeout(700);          // clouds are clear of frame by now, curtain still up
+  const stillUp = await page.evaluate(() => {
+    const fc = document.getElementById("fieldCurtain");
+    return fc.classList.contains("part") && getComputedStyle(fc).visibility === "visible"
+        && +getComputedStyle(fc).opacity > 0.9;
+  });
+  const partShot = `${dir}/parting.png`;
+  await page.screenshot({ path: partShot, clip: CLIP });
+  expect(stillUp, "curtain had already torn down — this frame proves nothing either way").toBe(true);
+
+  const closed = await frameMakeup(page, closedShot);
+  const parting = await frameMakeup(page, partShot);
+
+  console.log(`closed: ${JSON.stringify(closed)}   parting+750ms: ${JSON.stringify(parting)}`);
+  expect(closed.level, `level leaked through the closed curtain — ${JSON.stringify(closed)}`).toBeLessThan(0.5);
+  expect(parting.sky, `flat sky bed still on screen as the clouds part — ${JSON.stringify(parting)}`).toBeLessThan(5);
+  expect(parting.level, `level should be revealed as the clouds part — ${JSON.stringify(parting)}`).toBeGreaterThan(20);
+});
+
 test("tablet: curtain uses the 4-sheet LOD, not 60 composited cloud layers", async ({ page }) => {
   /* On coarse pointers the four .clouds containers are the animated layers and the
      individual clouds are plain paint inside them. 60 will-change clouds = ~94MB of

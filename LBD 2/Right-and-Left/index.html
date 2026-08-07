@@ -515,7 +515,9 @@
 
   /* ===== Cloud-curtain scene transition (MultipleCloudAssets) ===== */
   #fieldCurtain{position:absolute;inset:0;z-index:82;pointer-events:none;overflow:hidden;
-    --sky:#71B6E3;background:var(--sky);
+    /* NO bed on the base rule — see the "PARTING REVEALS THE LEVEL" note below: the bed is
+       painted only while the clouds are on their way in or holding closed. */
+    --sky:#71B6E3;background-color:transparent;
     opacity:0;visibility:hidden;transition:opacity .2s ease, visibility .2s;}
   #fieldCurtain.show{opacity:1;visibility:visible;}
   #fieldCurtain .cloud-bank{position:absolute;top:0;height:100%;width:88%;}
@@ -539,16 +541,26 @@
      blurred under the title art. Dropping the bed as the clouds start to leave fixes both.
      Safe by construction — .part is only ever added AFTER onCover() has swapped the scene,
      and the clouds still cover ~99.8% of the frame at that instant, so the bed is hidden as
-     it goes. Deliberately NOT on the base rule: when .part is removed the bed must be opaque
-     again instantly, ready for the next sweep's drift-in.
+     it goes.
 
-     The bed is DROPPED INSTANTLY, never faded. background-color is a paint property: putting
+     THE BED IS KEYED TO .show:not(.part) — NOT dropped by a `.part{background:transparent}`
+     override on an otherwise-opaque base. That override fixed the part phase and left one
+     more blue frame at the very END: cloudTransition finishes with
+     `classList.remove('show','part')`, which strips the override in the same tick, so the bed
+     snapped back to opaque blue while `opacity` still had its .2s fade to run — a full-screen
+     flat-blue veil painted AFTER the level was already on screen. Filmed at 40ms intervals it
+     read: +2473ms level 68.8% green, +2875ms one uniform blue frame (avg rgb 114,180,214,
+     zero colour variance), +3074ms level back. That last flash is what "blue screen after the
+     cloud transition" now means. Keying the bed to the closed state instead makes teardown
+     transparent by construction — the bed simply never exists outside the frames it hides.
+
+     The bed is switched INSTANTLY, never faded. background-color is a paint property: putting
      it in a transition re-rasterises this full-viewport layer on every frame of the fade.
      Measured across the part phase, a .3s fade cost 434 RasterTasks against 241 for an
      instant drop — 80% more raster work in exactly the frames the clouds are sliding, which
      reads as stutter on a tablet GPU while looking fine on desktop. An instant drop costs the
      same as never touching the bed at all (241 vs 242). Do NOT add a transition here. */
-  #fieldCurtain.part{background-color:transparent;}
+  #fieldCurtain.show:not(.part){background-color:var(--sky);}
   #fieldCurtain .clouds.back{z-index:1;opacity:.97;}
   #fieldCurtain .clouds.front{z-index:2;}
   /* PERF — two costs made the cloud transitions stutter (worst on tablets, visible on

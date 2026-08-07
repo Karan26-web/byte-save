@@ -530,6 +530,19 @@
   #fieldCurtain.show .cloud{transform:translateX(0);}
   #fieldCurtain.part .cloud{transform:translateX(-128vw);
     transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--dout,0s);}
+  /* PARTING REVEALS THE LEVEL, NOT THE SKY BED. The curtain is an OPAQUE sky-blue bed with
+     clouds on top; that bed is what hides the scene swap while closed. But it stayed opaque
+     for the whole part phase, so the clouds slid away and uncovered *the bed* — measured
+     100% flat blue from +750ms until the curtain finally faded at +1150ms. That dead blue
+     frame is what testers reported as "the blue screen after the clouds", and it also
+     defeated this transition's own intent: the clouds are supposed to reveal the playscreen
+     blurred under the title art. Dropping the bed as the clouds start to leave fixes both.
+     Safe by construction — .part is only ever added AFTER onCover() has swapped the scene,
+     and the clouds still cover ~99% of the frame at that instant, so the bed is hidden
+     while it fades. Deliberately NOT on the base rule: when .part is removed the bed must
+     snap back to opaque instantly, ready for the next sweep's drift-in. */
+  #fieldCurtain.part{background-color:transparent;
+    transition:opacity .2s ease, visibility .2s, background-color .3s ease;}
   #fieldCurtain .clouds.back{z-index:1;opacity:.97;}
   #fieldCurtain .clouds.front{z-index:2;}
   /* PERF — two costs made the cloud transitions stutter (worst on tablets, visible on

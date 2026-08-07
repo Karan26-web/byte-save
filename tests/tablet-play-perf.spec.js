@@ -121,9 +121,18 @@ test("tablet: the clouds part onto the level, never onto a flat blue screen", as
     const c = document.getElementById("fieldCurtain").classList;
     return c.contains("show") && !c.contains("part");
   }, null, { timeout: 15000 });
+  /* Shoot inside the closed window, then PROVE the shutter landed in it. The window is
+     cover(950ms) -> part, and the hold between them is only 300ms, so a fixed sleep alone is
+     luck: if the clouds had already started parting, a clean "level hidden" result would mean
+     nothing. Same discipline as the parting half below — confirm state, never assume it. */
   await page.waitForTimeout(1000);
   const closedShot = `${dir}/closed.png`;
   await page.screenshot({ path: closedShot, clip: CLIP });
+  const wasClosed = await page.evaluate(() => {
+    const c = document.getElementById("fieldCurtain").classList;
+    return c.contains("show") && !c.contains("part");
+  });
+  expect(wasClosed, "shutter missed the closed window — this frame proves nothing").toBe(true);
 
   /* Timing discipline, learned the hard way — an earlier version of this test passed with the
      bug deliberately reinstated. Two rules keep the frames meaningful:

@@ -518,8 +518,15 @@
     /* NO bed on the base rule — see the "PARTING REVEALS THE LEVEL" note below: the bed is
        painted only while the clouds are on their way in or holding closed. */
     --sky:#71B6E3;background-color:transparent;
-    opacity:0;visibility:hidden;transition:opacity .2s ease, visibility .2s;}
-  #fieldCurtain.show{opacity:1;visibility:visible;}
+    /* No transition on the BASE rule, so teardown SNAPS. A transition fires against its
+       destination state: keeping it here made `remove('show','part')` fade the curtain out
+       over .2s, leaving a full-viewport layer sitting over the level for 200ms after the
+       clouds were already off-screen — measured on WebKit as part of a ~490ms tail between
+       "clouds gone" and "curtain gone". There is nothing left to fade by then (bed
+       transparent, clouds parked off-screen), so the fade bought nothing and only delayed
+       the reveal. Putting the transition on .show alone keeps the fade IN and drops it OUT. */
+    opacity:0;visibility:hidden;}
+  #fieldCurtain.show{opacity:1;visibility:visible;transition:opacity .2s ease;}
   #fieldCurtain .cloud-bank{position:absolute;top:0;height:100%;width:88%;}
   #fieldCurtain .cb-left{left:0;}
   #fieldCurtain .cb-right{right:0;}
@@ -1848,7 +1855,19 @@ function confetti(parent){
                                     // swapping any earlier lets the next screen peek through the closing gaps
     if (onCover) onCover();         // swap scene while hidden
     if (label) fc.classList.add('closed');
-    await sleep(label ? 1500 : 900); // hold — labelled sweeps linger so the message fades fully in AND gets read
+    /* HOLD — dead time, nothing moves. Reported as "the blue screen appears for 2 seconds":
+       measured on WebKit the screen sat 99.8% covered from +580ms to +2266ms, and cover (950)
+       + the old 900ms hold is exactly the ~1.85s a tester rounds up to two seconds. The
+       reference given was the first game, "only about a second".
+
+       Cut to 300ms for unlabelled sweeps, which is the whole covered phase down to ~1.25s.
+       Nothing about the cloud motion changes — drift-in still gets its full 950ms (the slowest
+       cloud lands ~840ms in, so the swap stays hidden) and the exit keeps its full 980ms. The
+       clouds still settle closed for ~410ms before leaving, so it reads as a beat, not a bounce.
+
+       LABELLED sweeps keep 1500ms: that path is the finale ("Great job!"), where the label has
+       to fade in over .45s and still be readable. Do not collapse the two. */
+    await sleep(label ? 1500 : 300);
     fc.classList.remove('closed');
     if (label) await sleep(500);    // the label's fade-out runs .45s — let it finish BEFORE the clouds part,
                                     // so no text lingers over the screen being revealed

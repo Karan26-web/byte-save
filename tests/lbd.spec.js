@@ -244,7 +244,10 @@ test("LBD 1 is playable, and completion waits for the closing narration before a
   await page.waitForTimeout(400);
   expect((await H.state(page)).page, "an early tap must not advance the story").toBe(LBD1_PAGE);
 
-  // The narration's real `ended` (2.5s clip; watchdog would be duration+4s) releases it.
+  // The narration's real `ended` (1.32s "Great job!"; watchdog would be duration+4s) releases it.
+  // Was "2.5s clip" — written against `Byte Saved the Day.ogg`, then left stale when 4f58bfd
+  // swapped the closing line to the 4.74s "And just like that…" sign-off. Energy Hunt now
+  // closes on the short well-done, so the gate is shorter again, not longer.
   await frame.locator("#replayBtn").evaluate((b) =>
     new Promise((res) => {
       if (!b.disabled) return res();

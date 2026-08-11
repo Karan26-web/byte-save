@@ -114,7 +114,9 @@
 
     /* =================================================== COMPLETE handshake ==
        The real success path is GameManager.win() — it reveals #win and plays the
-       closing line "Byte saved the day!" (audio.voices.byteSaved).
+       closing praise "Great job!" (audio.voices.wellDone). Renamed from `byteSaved`
+       along with the clip it points at: this game closes on a generic well-done, not
+       on the book's "…Byte saved the day" sign-off, which is the FINAL game's line.
 
        Completion is NOT posted when the splash merely appears: the closing
        narration must finish first. Only then does the splash's Next button become
@@ -136,7 +138,7 @@
        `ended`, its `error`, or a watchdog of (duration + 4s) — 30s when the
        duration is unknown. The learner can never be stranded on the win splash. */
     function gateOnNarration() {
-      var vo = audio && audio.voices && audio.voices.byteSaved;
+      var vo = audio && audio.voices && audio.voices.wellDone;
       var timer = null;
       var release = function () {
         if (narrationDone) return;

@@ -513,6 +513,31 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0d1b12;
    force every big moving layer through an offscreen re-rasterisation EVERY frame, which
    stuttered the wipe on tablets and on high-DPI desktops alike. The effects were
    near-invisible against the sky bed — don't reintroduce them. */
+/* CURTAIN LOD FOR TABLETS — the desktop curtain is 60 individually-animated cloud layers:
+   ~95MB of composited textures at 2x DPR and ~7x the viewport painted every frame. Desktop
+   GPUs shrug; the budget mobile GPUs in real tablets (shared memory, limited fill-rate)
+   stutter on exactly this, and it is invisible to CPU-throttled profiling. On coarse
+   pointers the FOUR .clouds containers slide as sheets instead (back leads, front follows,
+   so the depth parallax survives): same art, same closed-state geometry, 4 composited
+   layers instead of 60 and about half the texture memory. Do not "restore" per-cloud
+   motion on tablets without measuring on real hardware. */
+@media (pointer:coarse){
+  #fieldCurtain .cloud,
+  #fieldCurtain.show .cloud, #fieldCurtain.part .cloud{
+    transform:none;transition:none;will-change:auto;}
+  #fieldCurtain .clouds{will-change:transform;
+    transition:transform .66s cubic-bezier(.30,1.16,.5,1) var(--bin,0s);}
+  #fieldCurtain .clouds.back{--bin:.04s;--bout:.15s;}   /* back leads in, lingers out */
+  #fieldCurtain .clouds.front{--bin:.12s;--bout:0s;}    /* front settles late, parts first */
+  #fieldCurtain .cb-left .clouds{transform:translateX(-128vw);}
+  #fieldCurtain .cb-right .clouds{transform:scaleX(-1) translateX(-128vw);} /* keep the mirror */
+  #fieldCurtain.show .cb-left .clouds{transform:translateX(0);}
+  #fieldCurtain.show .cb-right .clouds{transform:scaleX(-1);}
+  #fieldCurtain.part .cb-left .clouds{transform:translateX(-128vw);
+    transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--bout,0s);}
+  #fieldCurtain.part .cb-right .clouds{transform:scaleX(-1) translateX(-128vw);
+    transition:transform .60s cubic-bezier(.55,0,.85,.4) var(--bout,0s);}
+}
 
 /* The field label — surfaces from inside the clouds: scale-up + float-up + fade once closed */
 #fieldCurtain .fc-label{position:absolute;left:50%;top:50%;z-index:6;
@@ -1019,6 +1044,14 @@ const VO_FILES = {
   tapFar:      "Tap on the Pod far from Byte.ogg",             // level hint 2 (far variant)
   teachNear:   "This pod is near Byte.ogg",                    // distance-teaching bubble (close pod)
   teachFar:    "That pod is far from Byte.ogg",                // distance-teaching bubble (far pod)
+  /* CLOSING PRAISE on the win splash. Energy Hunt is the FIRST game in the book, so it must
+     not borrow the book's sign-off: it used to close on "And just like that, Byte saved the
+     day" (4.74s), which is the line the FINAL game plays over its "BYTE SAVED THE DAY" card.
+     Hearing the story's ending after game one read as a bug, and was one — 4f58bfd swapped
+     this src and nothing else. A short generic well-done is what belongs here.
+     Lives in this game's own pack (copied from LBD 2's VO, same narrator) rather than being
+     referenced across games: each game deploys as a self-contained unit. */
+  wellDone:    "great-job.ogg",                                // win splash — "Great job!" (1.32s)
 };
 /* Pause after each narrated line before the next beat starts — breathing room for kids
    (lines run 1.7-3.8s, so ~1.3s of quiet keeps the pace gentle without dragging). */
@@ -1060,10 +1093,10 @@ class AudioManager {
         this.voices[k] = new Audio('audios/LBD 1/' + f);
         this.voices[k].volume = 1; this.voices[k].preload = 'auto';
       }
-      // The closing line ships in audios/ (not the LBD 1 VO pack) — it plays over the win splash
-      // and the embed bridge gates the final Next on it finishing.
-      this.voices.byteSaved = new Audio('audios/And just like that, Byte Saved the Day (1).ogg');
-      this.voices.byteSaved.volume = 1; this.voices.byteSaved.preload = 'auto';
+      /* The closing line is now `wellDone`, loaded from the VO pack by the loop above like
+         every other line — it no longer needs its own hand-rolled Audio, because it no
+         longer lives outside the pack. The embed bridge gates the final Next on it
+         finishing, so it must be registered BEFORE the unduck wiring below. */
       // Un-duck the theme the moment a line stops for ANY reason: it finished ('ended'),
       // or stopVoice() cut it off ('pause'). The guard matters because pause events are
       // fired from a QUEUED task: when a new line cuts off the old one, the old line's
@@ -2308,7 +2341,9 @@ class GameManager {
     this.ui.hideInstruction();
     playSound('win');
     $('#win').classList.add('show');   // reveal the PostLBD celebration splash
-    audio.playVoice('byteSaved');      // 🔊 "Byte saved the day!" — closing VO over the splash
+    audio.playVoice('wellDone');       // 🔊 "Great job!" — closing praise over the splash. NOT the
+                                       // book's "…Byte saved the day" sign-off: that belongs to the
+                                       // final game, and playing it here ended the story at game one.
     audio.playFile('confetti');        // 🔊 celebratory popper, fired with the confetti
     this.particles.confetti();         // 5s two-sided fireworks (canvas-confetti)
   }

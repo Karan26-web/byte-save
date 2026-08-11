@@ -3,10 +3,15 @@
    real deployment. Excluded from the deployment payload via .vercelignore. */
 const { defineConfig, devices } = require("@playwright/test");
 
-const PORT = 8080;
+/* Override when a server from ANOTHER clone of this repo already owns 8080 —
+   `BYTE_TEST_PORT=8181 npx playwright test`. See tests/global-setup.js: reusing a
+   stranger's server silently tests their tree, so the suite refuses to start if the
+   port answers with different bytes than this checkout. */
+const PORT = Number(process.env.BYTE_TEST_PORT) || 8080;
 
 module.exports = defineConfig({
   testDir: "./tests",
+  globalSetup: require.resolve("./tests/global-setup.js"),
   fullyParallel: false,          // one browser at a time: the media is heavy
   workers: 1,
   timeout: 180000,               // page-1 video alone is 53s, and we watch it finish

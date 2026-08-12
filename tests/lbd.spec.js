@@ -111,6 +111,62 @@ test("hidden-level sprites and later narration are warmed during idle", async ({
   expect(has("Byte Saved the Day.ogg"), "closing VO should be warmed").toBe(true);
 });
 
+test("LBD 1 speaks hint 1 on BOTH near and far levels", async ({ page }) => {
+  /* A far level used to play hint 1 SILENTLY: the far recording was missing from the VO pack,
+     so beginLevel read `type === 'near' ? play('cellNear') : null` while the caption still said
+     "The pod far from Byte has a cell." Reported as "one VO is missing throughout".
+
+     Both variants are asserted, because the two failure modes are opposite and a one-sided test
+     would miss one of them: saying NOTHING on a far level (the shipped bug), and the tempting
+     "fix" of reusing cellNear, which would state the wrong answer out loud on a far level. So
+     each level must play its OWN line and never the other one. */
+  test.setTimeout(180000);
+
+  for (const want of ["far", "near"]) {
+    const other = want === "near" ? "far" : "near";
+    await page.goto("/LBD%201/index.html");
+    await page.waitForSelector("#startScreen .play-btn");
+
+    await page.evaluate((w) => {
+      Math.random = () => (w === "near" ? 0.1 : 0.9);   // beginLevel: <0.5 picks near
+      window.__vo = [];
+      const orig = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function (...a) {
+        const src = decodeURIComponent(this.src || this.currentSrc || "");
+        window.__vo.push(src.split("/").pop());
+        return orig.apply(this, a);
+      };
+    }, want);
+
+    await page.locator("#startScreen .play-btn").click(H.FORCE);
+    await page.waitForFunction(() => window.__lbd && window.__lbd.game, null, { timeout: 30000 });
+    await page.waitForTimeout(2500);                    // let the intro settle
+
+    // Drive a real puzzle level through the game's OWN beginLevel(), so the branch under
+    // test runs exactly as it does in play (levels 1+ are the near/far iterations).
+    await page.evaluate(() => { window.__vo = []; });
+    await page.evaluate(() => {
+      const g = window.__lbd.game;
+      g.canTap = false;
+      g.level = 1;
+      g.beginLevel();
+    });
+    await page.waitForTimeout(6000);                    // hint 1 plays while Byte scans
+
+    const r = await page.evaluate(() => ({
+      type: window.__lbd.game._instructionType,
+      vo: window.__vo,
+    }));
+    expect(r.type, `the ${want} branch should have been selected`).toBe(want);
+
+    const spoke = (frag) => r.vo.some((f) => f.includes(frag));
+    const mine = want === "near" ? "The Pod near Byte has a cell" : "The Pod far from Byte has a cell";
+    const theirs = other === "near" ? "The Pod near Byte has a cell" : "The Pod far from Byte has a cell";
+    expect(spoke(mine), `${want} level must speak its hint-1 line — heard: ${JSON.stringify(r.vo)}`).toBe(true);
+    expect(spoke(theirs), `${want} level must NOT speak the ${other} line — heard: ${JSON.stringify(r.vo)}`).toBe(false);
+  }
+});
+
 test("the overlay stays hidden on every page before the game page", async ({ page }) => {
   await H.openBook(page);
   for (const target of [0, 1, 2]) {

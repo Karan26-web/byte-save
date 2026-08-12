@@ -1040,6 +1040,7 @@ const VO_FILES = {
   helpByte:    "Help Byte collect the cells and power up!.ogg",// intro hint, scene 5 (mission)
   // (there is no "Near and Far.ogg" in the pack — the lesson title is text-only)
   cellNear:    "The Pod near Byte has a cell.ogg",             // level hint 1 (near variant)
+  cellFar:     "The Pod far from Byte has a cell.ogg",         // level hint 1 (far variant)
   tapNear:     "Tap on the pod near Byte.ogg",                 // level hint 2 (near variant)
   tapFar:      "Tap on the Pod far from Byte.ogg",             // level hint 2 (far variant)
   teachNear:   "This pod is near Byte.ogg",                    // distance-teaching bubble (close pod)
@@ -2165,8 +2166,13 @@ class GameManager {
     // Pin the battery HUD for the WHOLE game — tutorial included — so kids always see their
     // progress; slots light up in correctSequence as cells are earned (8 cells = full = win).
     this.ui.showBattery();
-    // 🔊 hint 1 — only the "near" variant exists in the VO pack; "far" shows text-only.
-    const cellVo = this._instructionType === 'near' ? audio.playVoiceEnded('cellNear') : null;
+    /* 🔊 hint 1 — BOTH variants are spoken. The far line used to be missing from the VO pack,
+       so this was `... === 'near' ? play('cellNear') : null` and every far level played hint 1
+       silently while its caption said "The pod far from Byte has a cell." Reported as "one VO
+       is missing throughout", and it also rushed the beat: `await cellVo` on null resolves
+       immediately, so far levels skipped the hold before the tap prompt that near levels get.
+       Never substitute cellNear here — on a far level it states the wrong answer out loud. */
+    const cellVo = audio.playVoiceEnded(this._instructionType === 'near' ? 'cellNear' : 'cellFar');
     this.ui.showHint(this._levelCellText());  // 1) "The pod near/far Byte has a cell."
     await this.byte.scan();                   // Byte looks left & right while that line shows
     await cellVo;                             // never talk over hint 1 — wait for the line to end…
